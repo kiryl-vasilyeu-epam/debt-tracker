@@ -401,6 +401,17 @@ button:disabled {
   white-space: nowrap;
 }
 
+.transaction-side {
+  display: grid;
+  justify-items: end;
+  gap: 0.2rem;
+}
+
+.history-date {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
 @media (max-width: 760px) {
   .app {
     width: calc(100vw - 0.8rem);
@@ -424,6 +435,10 @@ button:disabled {
   .transaction-item {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .transaction-side {
+    justify-items: start;
   }
 
   .person-screen-tabs {

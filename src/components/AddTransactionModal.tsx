@@ -15,9 +15,17 @@ type AddTransactionModalProps = {
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
-  gave: 'Отдал',
   took: 'Взял',
+  gave: 'Отдал',
   gave_for: 'Отдал за',
+}
+
+const transactionTypeOrder: TransactionType[] = ['took', 'gave', 'gave_for']
+
+const transactionTypeToneClass: Record<TransactionType, string> = {
+  took: 'add-transaction-modal-tone-took',
+  gave: 'add-transaction-modal-tone-gave',
+  gave_for: 'add-transaction-modal-tone-gave-for',
 }
 
 const formatPersonName = (personId: string, people: Person[]) => {
@@ -45,7 +53,7 @@ export function AddTransactionModal({
 
   const initialForWhomId = ''
 
-  const [type, setType] = useState<TransactionType>('gave')
+  const [type, setType] = useState<TransactionType>('took')
   const [whoId, setWhoId] = useState<string>(initialWhoId)
   const [toWhomId, setToWhomId] = useState<string>(initialToWhomId)
   const [forWhomId, setForWhomId] = useState<string>(initialForWhomId)
@@ -67,6 +75,7 @@ export function AddTransactionModal({
   const selectedWho = getPersonById(whoId, people)
   const selectedTo = getPersonById(toWhomId, people)
   const selectedFor = getPersonById(forWhomId, people)
+  const toWhomLabel = type === 'took' ? 'У кого' : 'Кому'
 
   useModalBehavior(isOpen, onClose)
 
@@ -109,12 +118,12 @@ export function AddTransactionModal({
     }
 
     if (!whoId || !toWhomId) {
-      setError('Заполните поля Кто и Кому.')
+      setError(`Заполните поля Кто и ${toWhomLabel}.`)
       return
     }
 
     if (whoId === toWhomId) {
-      setError('Кто и Кому не могут совпадать.')
+      setError(`Кто и ${toWhomLabel} не могут совпадать.`)
       return
     }
 
@@ -198,7 +207,12 @@ export function AddTransactionModal({
         }
       }}
     >
-      <section className="modal add-transaction-modal" role="dialog" aria-modal="true" aria-label="Новая операция">
+      <section
+        className={`modal add-transaction-modal ${transactionTypeToneClass[type]}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Новая операция"
+      >
         <header className="modal-header">
           <h2>Новая операция</h2>
           <button type="button" className="modal-close-button" onClick={onClose}>
@@ -214,7 +228,7 @@ export function AddTransactionModal({
             role="radiogroup"
             aria-label="Тип операции"
           >
-            {(Object.keys(transactionTypeLabels) as TransactionType[]).map(
+            {transactionTypeOrder.map(
               (transactionType) => (
                 <button
                   key={transactionType}
@@ -255,7 +269,7 @@ export function AddTransactionModal({
             ) : null}
           </div>
 
-          <label htmlFor="transaction-to">Кому</label>
+          <label htmlFor="transaction-to">{toWhomLabel}</label>
           <div className="person-select-row">
             <select
               id="transaction-to"

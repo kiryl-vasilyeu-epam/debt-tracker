@@ -11,12 +11,34 @@ type StartScreenProps = {
   areTransactionsLoaded: boolean
   isTransactionsLoading: boolean
   onRequestTransactions: () => Promise<void>
+  onDeleteTransaction: (transactionId: string) => Promise<void>
+  deletingTransactionId: string | null
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
-  gave: 'Отдал',
   took: 'Взял',
+  gave: 'Отдал',
   gave_for: 'Отдал за',
+}
+
+const betweenPeopleLabel: Record<TransactionType, string> = {
+  gave: '→',
+  took: 'у',
+  gave_for: '→',
+}
+
+const formatDate = (isoDate: string) => {
+  const date = new Date(isoDate)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 type PersonScreenTab = 'i_owe' | 'owe_me' | 'transactions'
@@ -142,6 +164,8 @@ export function StartScreen({
   areTransactionsLoaded,
   isTransactionsLoading,
   onRequestTransactions,
+  onDeleteTransaction,
+  deletingTransactionId,
 }: StartScreenProps) {
   const [personTabs, setPersonTabs] = useState<Record<string, PersonScreenTab>>(
     getStoredPersonTabs,
@@ -407,7 +431,7 @@ export function StartScreen({
                               person={fromPerson}
                               fallbackName={transaction.fromPersonName}
                             />
-                            <span className="history-arrow">→</span>
+                            <span className="history-arrow">{betweenPeopleLabel[transaction.type]}</span>
                             <PersonInline
                               person={toPerson}
                               fallbackName={transaction.toPersonName}
@@ -426,9 +450,26 @@ export function StartScreen({
                             <p className="transaction-note">{transaction.note}</p>
                           ) : null}
                         </div>
-                        <strong className="transaction-amount">
-                          HK$ {transaction.amountHkd.toFixed(2)}
-                        </strong>
+                        <div className="transaction-side">
+                          <strong className="transaction-amount">
+                            HK$ {transaction.amountHkd.toFixed(2)}
+                          </strong>
+                          <span className="history-date">{formatDate(transaction.createdAt)}</span>
+                          <button
+                            type="button"
+                            className="history-delete-button"
+                            onClick={() => {
+                              void onDeleteTransaction(transaction.id)
+                            }}
+                            aria-label="Удалить операцию"
+                            title="Удалить операцию"
+                            disabled={deletingTransactionId === transaction.id}
+                          >
+                            {deletingTransactionId === transaction.id
+                              ? 'Удаление...'
+                              : 'Удалить'}
+                          </button>
+                        </div>
                       </li>
                     )
                   })}

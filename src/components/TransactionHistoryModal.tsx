@@ -15,9 +15,15 @@ type TransactionHistoryModalProps = {
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
-  gave: 'Отдал',
   took: 'Взял',
+  gave: 'Отдал',
   gave_for: 'Отдал за',
+}
+
+const betweenPeopleLabel: Record<TransactionType, string> = {
+  gave: '→',
+  took: 'у',
+  gave_for: '→',
 }
 
 const formatDate = (isoDate: string) => {
@@ -222,7 +228,7 @@ export function TransactionHistoryModal({
                   <strong>{transactionTypeLabels[transaction.type]}</strong>
                   <p className="history-people-line">
                     <PersonInline person={from} fallbackName={transaction.fromPersonName} />
-                    <span className="history-arrow">→</span>
+                    <span className="history-arrow">{betweenPeopleLabel[transaction.type]}</span>
                     <PersonInline person={to} fallbackName={transaction.toPersonName} />
                     {transaction.forPersonId ? (
                       <>

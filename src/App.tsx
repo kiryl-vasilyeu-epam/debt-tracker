@@ -182,6 +182,8 @@ function App() {
         areTransactionsLoaded={areTransactionsLoaded}
         isTransactionsLoading={isTransactionsLoading}
         onRequestTransactions={ensureTransactionsLoaded}
+        onDeleteTransaction={deleteTransaction}
+        deletingTransactionId={deletingTransactionId}
       />
 
       {requestError ? (
