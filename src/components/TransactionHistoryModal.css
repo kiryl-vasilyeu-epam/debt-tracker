@@ -1,0 +1,83 @@
+.history-modal {
+    width: min(760px, 100%);
+    max-height: min(84vh, 780px);
+    grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.history-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.62rem;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.history-item {
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    background: #f9fbff;
+    padding: 0.68rem 0.74rem;
+    display: grid;
+    gap: 0.42rem;
+}
+
+.history-item-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.history-date {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+}
+
+.history-people-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+}
+
+.person-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.36rem;
+}
+
+.person-inline-missing {
+    color: var(--text-dim);
+}
+
+.person-color-dot-missing {
+    background: #c8ced8;
+    border-color: rgba(63, 73, 86, 0.28);
+}
+
+.history-arrow,
+.history-for-text {
+    color: var(--text-dim);
+}
+
+.history-delete-button {
+    min-height: 30px;
+    padding: 0.3rem 0.56rem;
+    font-size: 0.78rem;
+    background: #df4b58;
+    color: #fff;
+}
+
+@media (max-width: 760px) {
+    .history-modal {
+        width: 100%;
+    }
+
+    .history-item-actions {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+}

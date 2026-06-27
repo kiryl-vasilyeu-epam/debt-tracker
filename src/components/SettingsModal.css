@@ -129,11 +129,13 @@
     }
 
     .people-list li {
-        align-items: flex-start;
-        flex-direction: column;
+        align-items: center;
+        flex-direction: row;
+        justify-content: space-between;
     }
 
     .danger-button {
-        width: 100%;
+        width: auto;
+        flex: 0 0 auto;
     }
 }

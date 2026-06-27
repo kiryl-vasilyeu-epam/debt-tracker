@@ -68,24 +68,24 @@ export function SettingsModal({
         }
       }}
     >
-      <section className="modal" role="dialog" aria-modal="true" aria-label="People settings">
+      <section className="modal" role="dialog" aria-modal="true" aria-label="Настройки людей">
         <header className="modal-header">
-          <h2>People settings</h2>
+          <h2>Настройки людей</h2>
           <button type="button" className="modal-close-button" onClick={onClose}>
-            Close
+            Закрыть
           </button>
         </header>
 
         <form className="settings-form" onSubmit={handleAddPerson}>
-          <label htmlFor="new-person-name">Name</label>
+          <label htmlFor="new-person-name">Имя</label>
           <div className="settings-actions">
             <input
               id="new-person-name"
               value={newPersonName}
               onChange={(event) => setNewPersonName(event.target.value)}
-              placeholder="Anna"
+              placeholder="Имя"
             />
-            <button type="submit">Add person</button>
+            <button type="submit">Добавить человека</button>
           </div>
         </form>
 
@@ -107,7 +107,7 @@ export function SettingsModal({
                 className="danger-button"
                 onClick={() => onRemovePerson(person.id)}
               >
-                Delete
+                Удалить
               </button>
             </li>
           ))}

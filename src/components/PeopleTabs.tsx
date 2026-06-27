@@ -14,11 +14,11 @@ export function PeopleTabs({
   return (
     <section className="card tabs-card">
       <div className="tabs-title">
-        <h2>People</h2>
+        <h2>Люди</h2>
         <span>{people.length}</span>
       </div>
 
-      <div className="people-tabs" role="tablist" aria-label="People tabs">
+      <div className="people-tabs" role="tablist" aria-label="Вкладки людей">
         {people.map((person) => (
           <button
             key={person.id}
@@ -40,7 +40,7 @@ export function PeopleTabs({
         ))}
 
         {people.length === 0 ? (
-          <p className="empty-tabs">No people yet. Open settings and add one.</p>
+          <p className="empty-tabs">Людей пока нет. Откройте настройки и добавьте человека.</p>
         ) : null}
       </div>
     </section>
