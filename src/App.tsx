@@ -1,234 +1,111 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
-import { isSupabaseConfigured, supabase } from './lib/supabase'
-import type { DebtRecord } from './lib/supabase'
+import { useEffect, useState } from 'react'
+import { PeopleTabs } from './components/PeopleTabs'
+import { SettingsModal } from './components/SettingsModal'
+import { StartScreen } from './components/StartScreen'
+import {
+  generatePersonColor,
+  getStoredPeople,
+  savePeople,
+} from './lib/peopleStorage'
+import type { Person } from './types/person'
 import './App.css'
 
 function App() {
-  const [debts, setDebts] = useState<DebtRecord[]>([])
-  const [person, setPerson] = useState('')
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const total = useMemo(
-    () => debts.reduce((sum, entry) => sum + Number(entry.amount), 0),
-    [debts],
-  )
-
-  const loadDebts = async () => {
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
-    const { data, error: loadError } = await supabase
-      .from('debts')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (loadError) {
-      setError(loadError.message)
-      setLoading(false)
-      return
-    }
-
-    setDebts((data as DebtRecord[]) ?? [])
-    setLoading(false)
-  }
+  const [people, setPeople] = useState<Person[]>(getStoredPeople)
+  const [activePersonId, setActivePersonId] = useState<string | null>(() => {
+    const storedPeople = getStoredPeople()
+    return storedPeople[0]?.id ?? null
+  })
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   useEffect(() => {
-    const initialLoadTimer = window.setTimeout(() => {
-      void loadDebts()
-    }, 0)
+    savePeople(people)
+  }, [people])
 
-    if (!supabase) {
-      return () => {
-        window.clearTimeout(initialLoadTimer)
-      }
+  const addPerson = (name: string): string | null => {
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      return 'Enter person name.'
     }
 
-    const supabaseClient = supabase
-
-    const channel = supabaseClient
-      .channel('debts-feed')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'debts' },
-        () => {
-          void loadDebts()
-        },
+    if (
+      people.some(
+        (person) => person.name.toLowerCase() === trimmedName.toLowerCase(),
       )
-      .subscribe()
-
-    return () => {
-      window.clearTimeout(initialLoadTimer)
-      void supabaseClient.removeChannel(channel)
-    }
-  }, [])
-
-  const addDebt = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setError(null)
-
-    if (!supabase) {
-      setError('Supabase is not configured. Fill .env.local first.')
-      return
+    ) {
+      return 'This name already exists.'
     }
 
-    const numericAmount = Number(amount)
-    if (!person.trim() || Number.isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Please enter a name and amount greater than 0.')
-      return
+    const person: Person = {
+      id: window.crypto.randomUUID(),
+      name: trimmedName,
+      color: generatePersonColor(),
     }
 
-    setSaving(true)
-    const { error: insertError } = await supabase.from('debts').insert({
-      person: person.trim(),
-      amount: numericAmount,
-      note: note.trim() || null,
+    setPeople((prevPeople) => [...prevPeople, person])
+    setActivePersonId((currentActiveId) => currentActiveId ?? person.id)
+    return null
+  }
+
+  const removePerson = (id: string) => {
+    setPeople((prevPeople) => {
+      const nextPeople = prevPeople.filter((person) => person.id !== id)
+
+      setActivePersonId((currentActiveId) => {
+        if (currentActiveId !== id) {
+          return currentActiveId
+        }
+
+        return nextPeople[0]?.id ?? null
+      })
+
+      return nextPeople
     })
-
-    setSaving(false)
-
-    if (insertError) {
-      setError(insertError.message)
-      return
-    }
-
-    setPerson('')
-    setAmount('')
-    setNote('')
   }
 
-  const closeDebt = async (id: string) => {
-    if (!supabase) {
-      return
-    }
-
-    const { error: removeError } = await supabase
-      .from('debts')
-      .delete()
-      .eq('id', id)
-
-    if (removeError) {
-      setError(removeError.message)
-    }
-  }
-
-  if (!isSupabaseConfigured) {
-    return (
-      <main className="app">
-        <section className="card setup-card">
-          <h1>Debt Tracker</h1>
-          <p>
-            Add your Supabase keys in <strong>.env.local</strong> to enable
-            shared realtime storage.
-          </p>
-          <pre>
-            VITE_SUPABASE_URL=https://your-project.supabase.co{`\n`}
-            VITE_SUPABASE_ANON_KEY=your-public-anon-key
-          </pre>
-        </section>
-      </main>
-    )
-  }
+  const activePerson = people.find((person) => person.id === activePersonId) ?? null
 
   return (
     <main className="app">
-      <section className="card intro-card">
-        <div>
-          <h1>Debt Tracker</h1>
-          <p className="subtitle">
-            Shared ledger in realtime. Any user can add or close a debt and all
-            open tabs receive updates instantly.
-          </p>
-        </div>
-        <div className="total-block">
-          <span>Total open debt</span>
-          <strong>
-            {new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD',
-            }).format(total)}
-          </strong>
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>Add debt</h2>
-        <form className="debt-form" onSubmit={addDebt}>
-          <label>
-            Person
-            <input
-              value={person}
-              onChange={(event) => setPerson(event.target.value)}
-              placeholder="Anna"
-              required
+      <header className="top-bar card">
+        <h1>Debt Tracker</h1>
+        <button
+          type="button"
+          className="settings-icon-button"
+          aria-label={isSettingsOpen ? 'Close people settings' : 'Open people settings'}
+          title={isSettingsOpen ? 'Close settings' : 'People settings'}
+          onClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
+        >
+          <svg
+            className="settings-icon"
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            aria-hidden="true"
+          >
+            <path
+              d="M10.2 2h3.6l.5 2.1a7.8 7.8 0 0 1 1.9.8l1.9-1.1 2.5 2.5-1.1 1.9a7.8 7.8 0 0 1 .8 1.9L22 10.2v3.6l-2.1.5a7.8 7.8 0 0 1-.8 1.9l1.1 1.9-2.5 2.5-1.9-1.1a7.8 7.8 0 0 1-1.9.8l-.5 2.1h-3.6l-.5-2.1a7.8 7.8 0 0 1-1.9-.8l-1.9 1.1-2.5-2.5 1.1-1.9a7.8 7.8 0 0 1-.8-1.9L2 13.8v-3.6l2.1-.5a7.8 7.8 0 0 1 .8-1.9L3.8 5.9l2.5-2.5 1.9 1.1a7.8 7.8 0 0 1 1.9-.8L10.2 2Zm1.8 6.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"
+              fill="currentColor"
             />
-          </label>
-          <label>
-            Amount
-            <input
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="120.50"
-              required
-            />
-          </label>
-          <label className="full-width">
-            Note
-            <input
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Dinner payment split"
-            />
-          </label>
-          <button disabled={saving} type="submit">
-            {saving ? 'Saving...' : 'Add debt'}
-          </button>
-        </form>
-        {error ? <p className="error">{error}</p> : null}
-      </section>
+          </svg>
+        </button>
+      </header>
 
-      <section className="card">
-        <div className="list-header">
-          <h2>Open debts</h2>
-          <span>{debts.length} items</span>
-        </div>
+      <PeopleTabs
+        people={people}
+        activePersonId={activePersonId}
+        onSelectPerson={setActivePersonId}
+      />
 
-        {loading ? <p>Loading...</p> : null}
-        {!loading && debts.length === 0 ? (
-          <p>No debts yet. Add the first one.</p>
-        ) : null}
+      <StartScreen activePerson={activePerson} />
 
-        <ul className="debts-list">
-          {debts.map((entry) => (
-            <li key={entry.id}>
-              <div>
-                <h3>{entry.person}</h3>
-                <p>{entry.note || 'No note'}</p>
-              </div>
-              <div className="debt-meta">
-                <strong>
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                  }).format(entry.amount)}
-                </strong>
-                <button type="button" onClick={() => closeDebt(entry.id)}>
-                  Close
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        people={people}
+        onClose={() => setIsSettingsOpen(false)}
+        onAddPerson={addPerson}
+        onRemovePerson={removePerson}
+      />
     </main>
   )
 }
