@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useModalBehavior } from '../hooks/useModalBehavior'
 import type { Person } from '../types/person'
 import type { NewDebtTransaction, TransactionType } from '../types/transaction'
 import './AddTransactionModal.css'
@@ -42,7 +43,7 @@ export function AddTransactionModal({
 
   const initialToWhomId = ''
 
-  const initialForWhomId = people.find((person) => person.id !== initialWhoId)?.id ?? ''
+  const initialForWhomId = ''
 
   const [type, setType] = useState<TransactionType>('gave')
   const [whoId, setWhoId] = useState<string>(initialWhoId)
@@ -51,6 +52,7 @@ export function AddTransactionModal({
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const typeGroupRef = useRef<HTMLDivElement | null>(null)
 
   const availableToPeople = useMemo(
     () => people.filter((person) => person.id !== whoId),
@@ -66,26 +68,37 @@ export function AddTransactionModal({
   const selectedTo = getPersonById(toWhomId, people)
   const selectedFor = getPersonById(forWhomId, people)
 
+  useModalBehavior(isOpen, onClose)
+
   useEffect(() => {
-    if (!isOpen) {
+    const typeGroupNode = typeGroupRef.current
+    if (!typeGroupNode) {
       return
     }
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
+    const activeTypeButton = typeGroupNode.querySelector<HTMLButtonElement>(
+      '.transaction-type-button-active',
+    )
+    if (!activeTypeButton) {
+      return
     }
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
+    const maxScrollLeft = typeGroupNode.scrollWidth - typeGroupNode.clientWidth
+    if (maxScrollLeft <= 0) {
+      return
     }
-  }, [isOpen, onClose])
+
+    const nextScrollLeft =
+      activeTypeButton.offsetLeft -
+      (typeGroupNode.clientWidth - activeTypeButton.clientWidth) / 2
+
+    const clampedScrollLeft = Math.max(0, Math.min(nextScrollLeft, maxScrollLeft))
+
+    typeGroupNode.scrollTo({
+      left: clampedScrollLeft,
+      behavior: 'auto',
+    })
+  }, [type])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -196,6 +209,7 @@ export function AddTransactionModal({
         <form className="add-transaction-form" onSubmit={handleSubmit}>
           <span className="form-label">Тип</span>
           <div
+            ref={typeGroupRef}
             className="transaction-type-group"
             role="radiogroup"
             aria-label="Тип операции"
@@ -249,7 +263,9 @@ export function AddTransactionModal({
               onChange={(event) => setToWhomId(event.target.value)}
               disabled={isCreating}
             >
-              <option value="">Выберите человека</option>
+              <option value="" disabled hidden>
+                Выберите человека
+              </option>
               {availableToPeople.map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.name}
@@ -275,6 +291,9 @@ export function AddTransactionModal({
                   onChange={(event) => setForWhomId(event.target.value)}
                   disabled={isCreating}
                 >
+                  <option value="" disabled hidden>
+                    Выберите человека
+                  </option>
                   {availableForPeople.map((person) => (
                     <option key={person.id} value={person.id}>
                       {person.name}

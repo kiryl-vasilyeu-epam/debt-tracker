@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useModalBehavior } from '../hooks/useModalBehavior'
 import type { Person } from '../types/person'
 import type { DebtTransaction, TransactionType } from '../types/transaction'
 import './TransactionHistoryModal.css'
@@ -124,26 +125,7 @@ export function TransactionHistoryModal({
   const [amountSearch, setAmountSearch] = useState('')
   const [amountTolerance, setAmountTolerance] = useState('0')
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isOpen, onClose])
+  useModalBehavior(isOpen, onClose)
 
   if (!isOpen) {
     return null

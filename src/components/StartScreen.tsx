@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DebtBalance } from '../types/balance'
 import type { Person } from '../types/person'
 import type { DebtTransaction, TransactionType } from '../types/transaction'
@@ -151,6 +151,7 @@ export function StartScreen({
   )
   const [amountSearch, setAmountSearch] = useState('')
   const [amountTolerance, setAmountTolerance] = useState('0')
+  const personTabsRef = useRef<HTMLDivElement | null>(null)
 
   const activeTab = activePerson ? (personTabs[activePerson.id] ?? 'i_owe') : 'i_owe'
 
@@ -179,6 +180,22 @@ export function StartScreen({
 
     void onRequestTransactions()
   }, [activeTab, areTransactionsLoaded, onRequestTransactions])
+
+  useEffect(() => {
+    const tabsNode = personTabsRef.current
+    if (!tabsNode) {
+      return
+    }
+
+    const activeTabNode = tabsNode.querySelector<HTMLButtonElement>(
+      '.person-screen-tab-active',
+    )
+    activeTabNode?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    })
+  }, [activeTab])
 
   const sortedTransactions = useMemo(
     () =>
@@ -259,7 +276,12 @@ export function StartScreen({
         <>
           <h2>{activePerson.name}</h2>
 
-          <div className="person-screen-tabs" role="tablist" aria-label="Вкладки человека">
+          <div
+            ref={personTabsRef}
+            className="person-screen-tabs"
+            role="tablist"
+            aria-label="Вкладки человека"
+          >
             {(Object.keys(personScreenTabs) as PersonScreenTab[]).map((tabKey) => (
               <button
                 key={tabKey}

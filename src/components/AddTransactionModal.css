@@ -9,6 +9,7 @@
     overflow-y: auto;
     min-height: 0;
     padding-right: 0.1rem;
+    padding-bottom: 0.1rem;
 }
 
 .add-transaction-form label {
@@ -29,9 +30,12 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.45rem;
+    align-items: stretch;
+    min-height: 40px;
 }
 
 .transaction-type-button {
+    height: 40px;
     min-height: 40px;
     padding: 0.55rem 0.5rem;
     border: 1px solid var(--line);
@@ -146,6 +150,7 @@
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
         padding-bottom: 0.1rem;
+        min-height: 42px;
     }
 
     .transaction-type-group::-webkit-scrollbar {
@@ -165,5 +170,13 @@
     .add-transaction-modal {
         width: 100%;
         max-width: none;
+        max-height: 90vh;
+        max-height: 90dvh;
+        padding-bottom: calc(0.8rem + env(safe-area-inset-bottom));
+    }
+
+    .add-transaction-form {
+        padding-bottom: calc(1.2rem + env(safe-area-inset-bottom));
+        overscroll-behavior: contain;
     }
 }

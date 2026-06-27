@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useModalBehavior } from '../hooks/useModalBehavior'
 import {
   generatePersonColor,
   generateRandomPersonColorOptions,
@@ -35,31 +36,7 @@ export function SettingsModal({
   )
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const nextColorOptions = generateRandomPersonColorOptions()
-    setColorOptions(nextColorOptions)
-    setSelectedColor(nextColorOptions[0] ?? generatePersonColor())
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isOpen, onClose])
+  useModalBehavior(isOpen, onClose)
 
   const handleAddPerson = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

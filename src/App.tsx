@@ -4,23 +4,9 @@ import { PeopleTabs } from './components/PeopleTabs'
 import { SettingsModal } from './components/SettingsModal'
 import { StartScreen } from './components/StartScreen'
 import { TransactionHistoryModal } from './components/TransactionHistoryModal'
-import {
-  clearLegacyLocalData,
-  deletePersonRemote,
-  deleteTransactionRemote,
-  loadInitialAppState,
-  loadTransactions,
-  saveBalancesRemote,
-  savePersonRemote,
-  saveTransactionRemote,
-} from './lib/appStorage'
-import { generatePersonColor } from './lib/peopleStorage'
-import type { DebtBalance } from './types/balance'
-import type { Person } from './types/person'
-import type { NewDebtTransaction, DebtTransaction } from './types/transaction'
+import { useDebtTrackerData } from './hooks/useDebtTrackerData'
 import './App.css'
 
-const ACTIVE_PERSON_STORAGE_KEY = 'debt-tracker-active-person-id-v1'
 const THEME_STORAGE_KEY = 'debt-tracker-theme-v1'
 
 type AppTheme = 'light' | 'dark'
@@ -36,369 +22,37 @@ const getInitialTheme = (): AppTheme => {
     : 'light'
 }
 
-type Settlement = {
-  debtorId: string
-  debtorName: string
-  creditorId: string
-  creditorName: string
-  amountHkd: number
-}
-
-const balanceKey = (debtorId: string, creditorId: string) =>
-  `${debtorId}:${creditorId}`
-
-const applySettlement = (
-  map: Map<string, DebtBalance>,
-  settlement: Settlement,
-) => {
-  const forwardKey = balanceKey(settlement.debtorId, settlement.creditorId)
-  const reverseKey = balanceKey(settlement.creditorId, settlement.debtorId)
-
-  const reverse = map.get(reverseKey)
-  if (reverse) {
-    if (reverse.amountHkd > settlement.amountHkd) {
-      map.set(reverseKey, {
-        ...reverse,
-        amountHkd: Number((reverse.amountHkd - settlement.amountHkd).toFixed(2)),
-      })
-      return
-    }
-
-    if (reverse.amountHkd === settlement.amountHkd) {
-      map.delete(reverseKey)
-      return
-    }
-
-    map.delete(reverseKey)
-    map.set(forwardKey, {
-      id: forwardKey,
-      debtorId: settlement.debtorId,
-      debtorName: settlement.debtorName,
-      creditorId: settlement.creditorId,
-      creditorName: settlement.creditorName,
-      amountHkd: Number((settlement.amountHkd - reverse.amountHkd).toFixed(2)),
-    })
-    return
-  }
-
-  const currentForward = map.get(forwardKey)
-  if (!currentForward) {
-    map.set(forwardKey, {
-      id: forwardKey,
-      debtorId: settlement.debtorId,
-      debtorName: settlement.debtorName,
-      creditorId: settlement.creditorId,
-      creditorName: settlement.creditorName,
-      amountHkd: settlement.amountHkd,
-    })
-    return
-  }
-
-  map.set(forwardKey, {
-    ...currentForward,
-    amountHkd: Number((currentForward.amountHkd + settlement.amountHkd).toFixed(2)),
-  })
-}
-
-const getSettlements = (transaction: DebtTransaction): Settlement[] => {
-  if (transaction.type === 'gave') {
-    return [
-      {
-        debtorId: transaction.toPersonId,
-        debtorName: transaction.toPersonName,
-        creditorId: transaction.fromPersonId,
-        creditorName: transaction.fromPersonName,
-        amountHkd: transaction.amountHkd,
-      },
-    ]
-  }
-
-  if (transaction.type === 'took') {
-    return [
-      {
-        debtorId: transaction.fromPersonId,
-        debtorName: transaction.fromPersonName,
-        creditorId: transaction.toPersonId,
-        creditorName: transaction.toPersonName,
-        amountHkd: transaction.amountHkd,
-      },
-    ]
-  }
-
-  if (!transaction.forPersonId || !transaction.forPersonName) {
-    return []
-  }
-
-  return [
-    {
-      debtorId: transaction.toPersonId,
-      debtorName: transaction.toPersonName,
-      creditorId: transaction.forPersonId,
-      creditorName: transaction.forPersonName,
-      amountHkd: transaction.amountHkd,
-    },
-    {
-      debtorId: transaction.forPersonId,
-      debtorName: transaction.forPersonName,
-      creditorId: transaction.fromPersonId,
-      creditorName: transaction.fromPersonName,
-      amountHkd: transaction.amountHkd,
-    },
-  ]
-}
-
-const applyTransactionToBalances = (
-  currentBalances: DebtBalance[],
-  transaction: DebtTransaction,
-  direction: 'add' | 'remove',
-): DebtBalance[] => {
-  const map = new Map(currentBalances.map((balance) => [balance.id, balance]))
-  const settlements = getSettlements(transaction)
-
-  for (const settlement of settlements) {
-    if (direction === 'add') {
-      applySettlement(map, settlement)
-      continue
-    }
-
-    applySettlement(map, {
-      debtorId: settlement.creditorId,
-      debtorName: settlement.creditorName,
-      creditorId: settlement.debtorId,
-      creditorName: settlement.debtorName,
-      amountHkd: settlement.amountHkd,
-    })
-  }
-
-  return [...map.values()].sort((a, b) => b.amountHkd - a.amountHkd)
-}
-
 function App() {
-  const [people, setPeople] = useState<Person[]>([])
   const [theme, setTheme] = useState<AppTheme>(getInitialTheme)
-  const [activePersonId, setActivePersonId] = useState<string | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false)
-  const [transactions, setTransactions] = useState<DebtTransaction[]>([])
-  const [areTransactionsLoaded, setAreTransactionsLoaded] = useState(false)
-  const [isTransactionsLoading, setIsTransactionsLoading] = useState(false)
-  const [balances, setBalances] = useState<DebtBalance[]>([])
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
-  const [isAddingPerson, setIsAddingPerson] = useState(false)
-  const [removingPersonId, setRemovingPersonId] = useState<string | null>(null)
-  const [isCreatingTransaction, setIsCreatingTransaction] = useState(false)
-  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(
-    null,
-  )
-  const [requestError, setRequestError] = useState<string | null>(null)
-
-  const closeErrorOverlay = () => {
-    setRequestError(null)
-  }
+  const {
+    people,
+    activePersonId,
+    setActivePersonId,
+    transactions,
+    areTransactionsLoaded,
+    isTransactionsLoading,
+    balances,
+    isInitialLoading,
+    isAddingPerson,
+    removingPersonId,
+    isCreatingTransaction,
+    deletingTransactionId,
+    requestError,
+    closeRequestError,
+    ensureTransactionsLoaded,
+    addPerson,
+    removePerson,
+    createTransaction,
+    deleteTransaction,
+  } = useDebtTrackerData()
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem(THEME_STORAGE_KEY, theme)
   }, [theme])
-
-  useEffect(() => {
-    const loadState = async () => {
-      setIsInitialLoading(true)
-      setRequestError(null)
-
-      try {
-        clearLegacyLocalData()
-        const snapshot = await loadInitialAppState()
-
-        setPeople(snapshot.people)
-        setBalances(snapshot.balances)
-
-        const storedActivePersonId = window.localStorage.getItem(
-          ACTIVE_PERSON_STORAGE_KEY,
-        )
-        if (
-          storedActivePersonId &&
-          snapshot.people.some((person) => person.id === storedActivePersonId)
-        ) {
-          setActivePersonId(storedActivePersonId)
-        } else {
-          setActivePersonId(snapshot.people[0]?.id ?? null)
-        }
-      } catch {
-        setRequestError('Не удалось загрузить данные. Попробуйте обновить страницу.')
-      } finally {
-        setIsInitialLoading(false)
-      }
-    }
-
-    void loadState()
-  }, [])
-
-  useEffect(() => {
-    if (!activePersonId) {
-      window.localStorage.removeItem(ACTIVE_PERSON_STORAGE_KEY)
-      return
-    }
-
-    window.localStorage.setItem(ACTIVE_PERSON_STORAGE_KEY, activePersonId)
-  }, [activePersonId])
-
-  const ensureTransactionsLoaded = async () => {
-    if (areTransactionsLoaded || isTransactionsLoading) {
-      return
-    }
-
-    setIsTransactionsLoading(true)
-    setRequestError(null)
-
-    try {
-      const loadedTransactions = await loadTransactions(people)
-      setTransactions(loadedTransactions)
-      setAreTransactionsLoaded(true)
-    } catch {
-      setRequestError('Не удалось загрузить историю транзакций.')
-    } finally {
-      setIsTransactionsLoading(false)
-    }
-  }
-
-  const addPerson = async (
-    name: string,
-    selectedColor?: string,
-  ): Promise<string | null> => {
-    const trimmedName = name.trim()
-    if (!trimmedName) {
-      return 'Введите имя человека.'
-    }
-
-    if (
-      people.some(
-        (person) => person.name.toLowerCase() === trimmedName.toLowerCase(),
-      )
-    ) {
-      return 'Это имя уже существует.'
-    }
-
-    setIsAddingPerson(true)
-    setRequestError(null)
-
-    const person: Person = {
-      id: window.crypto.randomUUID(),
-      name: trimmedName,
-      color: selectedColor ?? generatePersonColor(),
-    }
-
-    try {
-      await savePersonRemote(person)
-
-      const nextPeople = [...people, person]
-      const nextActivePersonId = activePersonId ?? person.id
-
-      setPeople(nextPeople)
-      setActivePersonId(nextActivePersonId)
-
-      return null
-    } catch {
-      setRequestError('Не удалось добавить человека.')
-      return 'Не удалось добавить человека. Проверьте подключение к базе.'
-    } finally {
-      setIsAddingPerson(false)
-    }
-  }
-
-  const removePerson = async (id: string): Promise<void> => {
-    setRemovingPersonId(id)
-    setRequestError(null)
-
-    try {
-      await deletePersonRemote(id)
-
-      const nextPeople = people.filter((person) => person.id !== id)
-      const nextActivePersonId =
-        activePersonId === id ? (nextPeople[0]?.id ?? null) : activePersonId
-
-      setPeople(nextPeople)
-      setActivePersonId(nextActivePersonId)
-    } catch {
-      setRequestError('Не удалось удалить человека.')
-      throw new Error('Не удалось удалить человека')
-    } finally {
-      setRemovingPersonId(null)
-    }
-  }
-
-  const createTransaction = async (
-    transaction: NewDebtTransaction,
-  ): Promise<string | null> => {
-    setIsCreatingTransaction(true)
-    setRequestError(null)
-
-    const nextTransaction: DebtTransaction = {
-      id: window.crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      ...transaction,
-    }
-
-    const nextBalances = applyTransactionToBalances(
-      balances,
-      nextTransaction,
-      'add',
-    )
-
-    try {
-      await saveTransactionRemote(nextTransaction)
-      await saveBalancesRemote(nextBalances, balances)
-
-      if (areTransactionsLoaded) {
-        setTransactions((prevTransactions) => [nextTransaction, ...prevTransactions])
-      }
-      setBalances(nextBalances)
-
-      return null
-    } catch {
-      setRequestError('Не удалось сохранить операцию.')
-      return 'Не удалось сохранить операцию. Проверьте подключение к базе.'
-    } finally {
-      setIsCreatingTransaction(false)
-    }
-  }
-
-  const deleteTransaction = async (transactionId: string) => {
-    setDeletingTransactionId(transactionId)
-    setRequestError(null)
-
-    const transactionToDelete = transactions.find(
-      (transaction) => transaction.id === transactionId,
-    )
-    if (!transactionToDelete) {
-      setDeletingTransactionId(null)
-      return
-    }
-
-    const nextTransactions = transactions.filter(
-      (transaction) => transaction.id !== transactionId,
-    )
-    const nextBalances = applyTransactionToBalances(
-      balances,
-      transactionToDelete,
-      'remove',
-    )
-
-    try {
-      await deleteTransactionRemote(transactionId)
-      await saveBalancesRemote(nextBalances, balances)
-
-      setTransactions(nextTransactions)
-      setBalances(nextBalances)
-      setAreTransactionsLoaded(true)
-    } catch {
-      setRequestError('Не удалось удалить операцию.')
-      throw new Error('Не удалось удалить операцию')
-    } finally {
-      setDeletingTransactionId(null)
-    }
-  }
 
   const activePerson = people.find((person) => person.id === activePersonId) ?? null
 
@@ -536,7 +190,7 @@ function App() {
             <h2>Ошибка запроса</h2>
             <p>{requestError}</p>
             <div className="error-overlay-actions">
-              <button type="button" onClick={closeErrorOverlay}>
+              <button type="button" onClick={closeRequestError}>
                 Понятно
               </button>
             </div>
@@ -556,15 +210,17 @@ function App() {
         </button>
       ) : null}
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        people={people}
-        onClose={() => setIsSettingsOpen(false)}
-        onAddPerson={addPerson}
-        onRemovePerson={removePerson}
-        isAddingPerson={isAddingPerson}
-        removingPersonId={removingPersonId}
-      />
+      {isSettingsOpen ? (
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          people={people}
+          onClose={() => setIsSettingsOpen(false)}
+          onAddPerson={addPerson}
+          onRemovePerson={removePerson}
+          isAddingPerson={isAddingPerson}
+          removingPersonId={removingPersonId}
+        />
+      ) : null}
 
       {isHistoryOpen ? (
         <TransactionHistoryModal
