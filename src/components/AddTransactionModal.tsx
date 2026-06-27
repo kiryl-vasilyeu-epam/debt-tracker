@@ -9,7 +9,8 @@ type AddTransactionModalProps = {
   people: Person[]
   defaultWhoId: string | null
   onClose: () => void
-  onCreate: (transaction: NewDebtTransaction) => void
+  onCreate: (transaction: NewDebtTransaction) => Promise<string | null>
+  isCreating: boolean
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
@@ -32,6 +33,7 @@ export function AddTransactionModal({
   defaultWhoId,
   onClose,
   onCreate,
+  isCreating,
 }: AddTransactionModalProps) {
   const initialWhoId =
     defaultWhoId && people.some((person) => person.id === defaultWhoId)
@@ -47,6 +49,7 @@ export function AddTransactionModal({
   const [toWhomId, setToWhomId] = useState<string>(initialToWhomId)
   const [forWhomId, setForWhomId] = useState<string>(initialForWhomId)
   const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const availableToPeople = useMemo(
@@ -84,7 +87,7 @@ export function AddTransactionModal({
     }
   }, [isOpen, onClose])
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (people.length < 2) {
@@ -118,18 +121,31 @@ export function AddTransactionModal({
       return
     }
 
-    onCreate({
+    const whoName = formatPersonName(whoId, people)
+    const toName = formatPersonName(toWhomId, people)
+    const resolvedForName =
+      type === 'gave_for' ? formatPersonName(forWhomId, people) : null
+
+    const createError = await onCreate({
       type,
       fromPersonId: whoId,
+      fromPersonName: whoName || 'Удален',
       toPersonId: toWhomId,
+      toPersonName: toName || 'Удален',
       forPersonId: type === 'gave_for' ? forWhomId : null,
+      forPersonName: type === 'gave_for' ? resolvedForName || 'Удален' : null,
       amountHkd: Number(numericAmount.toFixed(2)),
+      note: note.trim() ? note.trim().slice(0, 280) : null,
     })
 
-    const toName = formatPersonName(toWhomId, people)
-    const whoName = formatPersonName(whoId, people)
+    if (createError) {
+      setError(createError)
+      return
+    }
+
     setError(null)
     setAmount('')
+    setNote('')
 
     if (type !== 'gave_for') {
       setForWhomId(toWhomId)
@@ -208,6 +224,7 @@ export function AddTransactionModal({
               id="transaction-who"
               value={whoId}
               onChange={(event) => handleWhoChange(event.target.value)}
+              disabled={isCreating}
             >
               {people.map((person) => (
                 <option key={person.id} value={person.id}>
@@ -230,6 +247,7 @@ export function AddTransactionModal({
               id="transaction-to"
               value={toWhomId}
               onChange={(event) => setToWhomId(event.target.value)}
+              disabled={isCreating}
             >
               <option value="">Выберите человека</option>
               {availableToPeople.map((person) => (
@@ -255,6 +273,7 @@ export function AddTransactionModal({
                   id="transaction-for"
                   value={forWhomId}
                   onChange={(event) => setForWhomId(event.target.value)}
+                  disabled={isCreating}
                 >
                   {availableForPeople.map((person) => (
                     <option key={person.id} value={person.id}>
@@ -285,13 +304,25 @@ export function AddTransactionModal({
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0.00"
+              disabled={isCreating}
             />
           </div>
 
+          <label htmlFor="transaction-note">Заметка (необязательно)</label>
+          <textarea
+            id="transaction-note"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            maxLength={280}
+            rows={3}
+            placeholder="Короткий комментарий"
+            disabled={isCreating}
+          />
+
           {error ? <p className="error">{error}</p> : null}
 
-          <button type="submit" className="save-transaction-button">
-            Сохранить
+          <button type="submit" className="save-transaction-button" disabled={isCreating}>
+            {isCreating ? 'Сохранение...' : 'Сохранить'}
           </button>
         </form>
       </section>

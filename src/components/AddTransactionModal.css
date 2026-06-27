@@ -36,8 +36,8 @@
     padding: 0.55rem 0.5rem;
     border: 1px solid var(--line);
     border-radius: 0.58rem;
-    background: #f3f7fe;
-    color: #23405f;
+    background: var(--surface-soft-2);
+    color: var(--text-strong);
     font-weight: 600;
 }
 
@@ -46,9 +46,9 @@
 }
 
 .transaction-type-button-active {
-    border-color: #6b92c5;
-    background: #dbe9fb;
-    color: #12375e;
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+    color: var(--text-strong);
 }
 
 .person-select-row {
@@ -68,7 +68,18 @@
     padding: 0.62rem 0.74rem;
     font: inherit;
     color: var(--text-strong);
-    background: #fff;
+    background: var(--input-bg);
+}
+
+.add-transaction-form textarea {
+    border: 1px solid var(--line);
+    border-radius: 0.6rem;
+    padding: 0.62rem 0.74rem;
+    font: inherit;
+    color: var(--text-strong);
+    background: var(--input-bg);
+    resize: vertical;
+    min-height: 72px;
 }
 
 .person-select-row select {
@@ -76,7 +87,8 @@
 }
 
 .add-transaction-form select:focus-visible,
-.add-transaction-form input:focus-visible {
+.add-transaction-form input:focus-visible,
+.add-transaction-form textarea:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
 }
@@ -89,7 +101,7 @@
     border: 1px solid var(--line);
     border-radius: 0.6rem;
     padding: 0.15rem 0.15rem 0.15rem 0.65rem;
-    background: #fff;
+    background: var(--input-bg);
 }
 
 .amount-input-wrap span {

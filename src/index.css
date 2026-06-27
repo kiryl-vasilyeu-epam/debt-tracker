@@ -1,11 +1,35 @@
 :root {
   --bg: #f3f7fc;
   --surface: #fdfefe;
+  --surface-soft: #f9fbff;
+  --surface-soft-2: #f3f7fe;
+  --surface-soft-3: #edf3fc;
   --line: #ced9e8;
   --text: #42536a;
   --text-strong: #0f1f35;
   --text-dim: #7083a2;
   --accent: #145fb4;
+  --accent-soft: #dbe9fb;
+  --accent-line: #6b92c5;
+  --input-bg: #ffffff;
+  --inverse-text: #ffffff;
+  --secondary-bg: #edf3fc;
+  --secondary-text: #1d3f70;
+  --danger-bg: #df4b58;
+  --danger-text: #ffffff;
+  --overlay-bg: rgba(10, 17, 28, 0.62);
+  --error-border: #f2b1b6;
+  --error-bg: #fff9fa;
+  --error-title: #8d1826;
+  --error-text: #5d1f2a;
+  --loader-track: #c9d8ef;
+  --loader-accent: #2b6ec2;
+  --amount-text: #0c3f79;
+  --note-text: #2f3f53;
+  --missing-dot: #c8ced8;
+  --missing-dot-border: rgba(63, 73, 86, 0.28);
+  --bg-gradient-top: #d8e7fa;
+  --bg-gradient-bottom: #dcecf9;
 
   font-family: 'Avenir Next', 'Segoe UI', sans-serif;
   line-height: 1.4;
@@ -15,6 +39,42 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f1621;
+  --surface: #151f2d;
+  --surface-soft: #1a2638;
+  --surface-soft-2: #1f2d43;
+  --surface-soft-3: #25364f;
+  --line: #334761;
+  --text: #c3d1e3;
+  --text-strong: #e7f0fb;
+  --text-dim: #95abc5;
+  --accent: #56a3ff;
+  --accent-soft: #2a3f5e;
+  --accent-line: #5c83b5;
+  --input-bg: #1a2638;
+  --inverse-text: #0d1622;
+  --secondary-bg: #25364f;
+  --secondary-text: #dce9fb;
+  --danger-bg: #cd4e59;
+  --danger-text: #ffffff;
+  --overlay-bg: rgba(3, 8, 14, 0.78);
+  --error-border: #9f4a54;
+  --error-bg: #2a1c22;
+  --error-title: #ffb9bf;
+  --error-text: #f7cbd0;
+  --loader-track: #365377;
+  --loader-accent: #6db4ff;
+  --amount-text: #9ec9ff;
+  --note-text: #d3e0f2;
+  --missing-dot: #51637d;
+  --missing-dot-border: rgba(207, 223, 241, 0.24);
+  --bg-gradient-top: #1c2a3e;
+  --bg-gradient-bottom: #1c2f45;
+  color-scheme: dark;
 }
 
 * {
@@ -25,9 +85,10 @@ body {
   margin: 0;
   min-height: 100vh;
   overflow-x: hidden;
+  color: var(--text);
   background:
-    radial-gradient(circle at top right, #d8e7fa 0%, transparent 48%),
-    radial-gradient(circle at bottom left, #dcecf9 0%, transparent 40%),
+    radial-gradient(circle at top right, var(--bg-gradient-top) 0%, transparent 48%),
+    radial-gradient(circle at bottom left, var(--bg-gradient-bottom) 0%, transparent 40%),
     var(--bg);
 }
 

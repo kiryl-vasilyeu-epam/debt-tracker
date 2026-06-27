@@ -7,8 +7,10 @@ type TransactionHistoryModalProps = {
   isOpen: boolean
   people: Person[]
   transactions: DebtTransaction[]
-  onDeleteTransaction: (transactionId: string) => void
+  onDeleteTransaction: (transactionId: string) => Promise<void>
   onClose: () => void
+  deletingTransactionId: string | null
+  isTransactionsLoading: boolean
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
@@ -77,8 +79,14 @@ const isAmountWithinTolerance = (
   return Math.abs(amount - targetAmount) <= tolerance
 }
 
-const PersonInline = ({ person }: { person: Person | null }) => {
-  if (!person) {
+const PersonInline = ({
+  person,
+  fallbackName,
+}: {
+  person: Person | null
+  fallbackName?: string
+}) => {
+  if (!person && !fallbackName) {
     return (
       <span className="person-inline person-inline-missing">
         <span className="person-color-dot person-color-dot-missing" aria-hidden="true" />
@@ -89,12 +97,16 @@ const PersonInline = ({ person }: { person: Person | null }) => {
 
   return (
     <span className="person-inline">
-      <span
-        className="person-color-dot"
-        style={{ backgroundColor: person.color }}
-        aria-hidden="true"
-      />
-      {person.name}
+      {person ? (
+        <span
+          className="person-color-dot"
+          style={{ backgroundColor: person.color }}
+          aria-hidden="true"
+        />
+      ) : (
+        <span className="person-color-dot person-color-dot-missing" aria-hidden="true" />
+      )}
+      {person?.name ?? fallbackName}
     </span>
   )
 }
@@ -105,6 +117,8 @@ export function TransactionHistoryModal({
   transactions,
   onDeleteTransaction,
   onClose,
+  deletingTransactionId,
+  isTransactionsLoading,
 }: TransactionHistoryModalProps) {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateInputValue)
   const [amountSearch, setAmountSearch] = useState('')
@@ -203,7 +217,12 @@ export function TransactionHistoryModal({
           </div>
         </div>
 
-        {sortedTransactions.length === 0 ? (
+        {isTransactionsLoading ? (
+          <div className="transactions-loading-state" aria-live="polite">
+            <div className="loader" aria-hidden="true" />
+            <p>Загружаем историю транзакций...</p>
+          </div>
+        ) : sortedTransactions.length === 0 ? (
           <p>Операций пока нет.</p>
         ) : filteredTransactions.length === 0 ? (
           <p>По выбранному дню и сумме операций не найдено.</p>
@@ -220,27 +239,36 @@ export function TransactionHistoryModal({
                 <li key={transaction.id} className="history-item">
                   <strong>{transactionTypeLabels[transaction.type]}</strong>
                   <p className="history-people-line">
-                    <PersonInline person={from} />
+                    <PersonInline person={from} fallbackName={transaction.fromPersonName} />
                     <span className="history-arrow">→</span>
-                    <PersonInline person={to} />
+                    <PersonInline person={to} fallbackName={transaction.toPersonName} />
                     {transaction.forPersonId ? (
                       <>
                         <span className="history-for-text">за</span>
-                        <PersonInline person={forPerson} />
+                        <PersonInline
+                          person={forPerson}
+                          fallbackName={transaction.forPersonName ?? 'Удален'}
+                        />
                       </>
                     ) : null}
                   </p>
+                  {transaction.note ? <p className="transaction-note">{transaction.note}</p> : null}
                   <strong className="transaction-amount">HK$ {transaction.amountHkd.toFixed(2)}</strong>
                   <div className="history-item-actions">
                     <span className="history-date">{formatDate(transaction.createdAt)}</span>
                     <button
                       type="button"
                       className="history-delete-button"
-                      onClick={() => onDeleteTransaction(transaction.id)}
+                      onClick={() => {
+                        void onDeleteTransaction(transaction.id)
+                      }}
                       aria-label="Удалить операцию"
                       title="Удалить операцию"
+                      disabled={deletingTransactionId === transaction.id}
                     >
-                      Удалить
+                      {deletingTransactionId === transaction.id
+                        ? 'Удаление...'
+                        : 'Удалить'}
                     </button>
                   </div>
                 </li>

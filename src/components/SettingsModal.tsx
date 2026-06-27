@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  generatePersonColor,
+  generateRandomPersonColorOptions,
+} from '../lib/peopleStorage'
 import type { Person } from '../types/person'
 import './SettingsModal.css'
 
@@ -7,8 +11,10 @@ type SettingsModalProps = {
   isOpen: boolean
   people: Person[]
   onClose: () => void
-  onAddPerson: (name: string) => string | null
-  onRemovePerson: (id: string) => void
+  onAddPerson: (name: string, color: string) => Promise<string | null>
+  onRemovePerson: (id: string) => Promise<void>
+  isAddingPerson: boolean
+  removingPersonId: string | null
 }
 
 export function SettingsModal({
@@ -17,8 +23,16 @@ export function SettingsModal({
   onClose,
   onAddPerson,
   onRemovePerson,
+  isAddingPerson,
+  removingPersonId,
 }: SettingsModalProps) {
   const [newPersonName, setNewPersonName] = useState('')
+  const [colorOptions, setColorOptions] = useState<string[]>(() =>
+    generateRandomPersonColorOptions(),
+  )
+  const [selectedColor, setSelectedColor] = useState<string>(() =>
+    generatePersonColor(),
+  )
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -34,6 +48,11 @@ export function SettingsModal({
 
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+
+    const nextColorOptions = generateRandomPersonColorOptions()
+    setColorOptions(nextColorOptions)
+    setSelectedColor(nextColorOptions[0] ?? generatePersonColor())
+
     window.addEventListener('keydown', onKeyDown)
 
     return () => {
@@ -42,10 +61,13 @@ export function SettingsModal({
     }
   }, [isOpen, onClose])
 
-  const handleAddPerson = (event: FormEvent<HTMLFormElement>) => {
+  const handleAddPerson = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const addError = onAddPerson(newPersonName)
+    const addError = await onAddPerson(
+      newPersonName,
+      selectedColor || generatePersonColor(),
+    )
     if (addError) {
       setError(addError)
       return
@@ -53,6 +75,9 @@ export function SettingsModal({
 
     setError(null)
     setNewPersonName('')
+    const nextColorOptions = generateRandomPersonColorOptions()
+    setColorOptions(nextColorOptions)
+    setSelectedColor(nextColorOptions[0] ?? generatePersonColor())
   }
 
   if (!isOpen) {
@@ -84,8 +109,30 @@ export function SettingsModal({
               value={newPersonName}
               onChange={(event) => setNewPersonName(event.target.value)}
               placeholder="Имя"
+              disabled={isAddingPerson}
             />
-            <button type="submit">Добавить человека</button>
+            <button type="submit" disabled={isAddingPerson}>
+              {isAddingPerson ? 'Добавление...' : 'Добавить человека'}
+            </button>
+          </div>
+
+          <div className="person-color-picker" role="group" aria-label="Выбор цвета человека">
+            {colorOptions.map((color) => {
+              const isActive = selectedColor === color
+
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  className={`person-color-option ${isActive ? 'person-color-option-active' : ''}`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => setSelectedColor(color)}
+                  aria-label={`Цвет ${color}`}
+                  aria-pressed={isActive}
+                  title={color}
+                />
+              )
+            })}
           </div>
         </form>
 
@@ -105,9 +152,12 @@ export function SettingsModal({
               <button
                 type="button"
                 className="danger-button"
-                onClick={() => onRemovePerson(person.id)}
+                onClick={() => {
+                  void onRemovePerson(person.id)
+                }}
+                disabled={removingPersonId === person.id}
               >
-                Удалить
+                {removingPersonId === person.id ? 'Удаление...' : 'Удалить'}
               </button>
             </li>
           ))}

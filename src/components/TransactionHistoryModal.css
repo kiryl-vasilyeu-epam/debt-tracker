@@ -17,7 +17,7 @@
 .history-item {
     border: 1px solid var(--line);
     border-radius: 0.7rem;
-    background: #f9fbff;
+    background: var(--surface-soft);
     padding: 0.68rem 0.74rem;
     display: grid;
     gap: 0.42rem;
@@ -53,8 +53,8 @@
 }
 
 .person-color-dot-missing {
-    background: #c8ced8;
-    border-color: rgba(63, 73, 86, 0.28);
+    background: var(--missing-dot);
+    border-color: var(--missing-dot-border);
 }
 
 .history-arrow,
@@ -66,8 +66,8 @@
     min-height: 30px;
     padding: 0.3rem 0.56rem;
     font-size: 0.78rem;
-    background: #df4b58;
-    color: #fff;
+    background: var(--danger-bg);
+    color: var(--danger-text);
 }
 
 @media (max-width: 760px) {

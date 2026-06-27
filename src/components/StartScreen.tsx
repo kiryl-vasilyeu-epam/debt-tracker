@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { DebtBalance } from '../types/balance'
 import type { Person } from '../types/person'
 import type { DebtTransaction, TransactionType } from '../types/transaction'
 
@@ -6,6 +7,10 @@ type StartScreenProps = {
   activePerson: Person | null
   people: Person[]
   transactions: DebtTransaction[]
+  balances: DebtBalance[]
+  areTransactionsLoaded: boolean
+  isTransactionsLoading: boolean
+  onRequestTransactions: () => Promise<void>
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
@@ -23,10 +28,33 @@ const personScreenTabs: Record<PersonScreenTab, string> = {
 }
 
 const ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY =
-  'debt-tracker-active-person-screen-tab-v1'
+  'debt-tracker-active-person-screen-tab-by-person-v1'
 
 const isPersonScreenTab = (value: string | null): value is PersonScreenTab =>
   value === 'i_owe' || value === 'owe_me' || value === 'transactions'
+
+const getStoredPersonTabs = (): Record<string, PersonScreenTab> => {
+  const rawValue = window.localStorage.getItem(ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY)
+  if (!rawValue) {
+    return {}
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Record<string, string>
+    const next: Record<string, PersonScreenTab> = {}
+
+    for (const [personId, tab] of Object.entries(parsed)) {
+      if (isPersonScreenTab(tab)) {
+        next[personId] = tab
+      }
+    }
+
+    return next
+  } catch {
+    window.localStorage.removeItem(ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY)
+    return {}
+  }
+}
 
 const findPerson = (id: string, people: Person[]) =>
   people.find((item) => item.id === id) ?? null
@@ -74,53 +102,14 @@ const isAmountWithinTolerance = (
   return Math.abs(amount - targetAmount) <= tolerance
 }
 
-type Settlement = {
-  debtorId: string
-  creditorId: string
-  amount: number
-}
-
-const getSettlements = (transaction: DebtTransaction): Settlement[] => {
-  if (transaction.type === 'gave') {
-    return [
-      {
-        debtorId: transaction.toPersonId,
-        creditorId: transaction.fromPersonId,
-        amount: transaction.amountHkd,
-      },
-    ]
-  }
-
-  if (transaction.type === 'took') {
-    return [
-      {
-        debtorId: transaction.fromPersonId,
-        creditorId: transaction.toPersonId,
-        amount: transaction.amountHkd,
-      },
-    ]
-  }
-
-  if (!transaction.forPersonId) {
-    return []
-  }
-
-  return [
-    {
-      debtorId: transaction.toPersonId,
-      creditorId: transaction.forPersonId,
-      amount: transaction.amountHkd,
-    },
-    {
-      debtorId: transaction.forPersonId,
-      creditorId: transaction.fromPersonId,
-      amount: transaction.amountHkd,
-    },
-  ]
-}
-
-const PersonInline = ({ person }: { person: Person | null }) => {
-  if (!person) {
+const PersonInline = ({
+  person,
+  fallbackName,
+}: {
+  person: Person | null
+  fallbackName?: string
+}) => {
+  if (!person && !fallbackName) {
     return (
       <span className="person-inline person-inline-missing">
         <span className="person-color-dot person-color-dot-missing" aria-hidden="true" />
@@ -131,12 +120,16 @@ const PersonInline = ({ person }: { person: Person | null }) => {
 
   return (
     <span className="person-inline">
-      <span
-        className="person-color-dot"
-        style={{ backgroundColor: person.color }}
-        aria-hidden="true"
-      />
-      {person.name}
+      {person ? (
+        <span
+          className="person-color-dot"
+          style={{ backgroundColor: person.color }}
+          aria-hidden="true"
+        />
+      ) : (
+        <span className="person-color-dot person-color-dot-missing" aria-hidden="true" />
+      )}
+      {person?.name ?? fallbackName}
     </span>
   )
 }
@@ -145,22 +138,47 @@ export function StartScreen({
   activePerson,
   people,
   transactions,
+  balances,
+  areTransactionsLoaded,
+  isTransactionsLoading,
+  onRequestTransactions,
 }: StartScreenProps) {
-  const [activeTab, setActiveTab] = useState<PersonScreenTab>(() => {
-    const storedTab = window.localStorage.getItem(
-      ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY,
-    )
-    return isPersonScreenTab(storedTab) ? storedTab : 'transactions'
-  })
+  const [personTabs, setPersonTabs] = useState<Record<string, PersonScreenTab>>(
+    getStoredPersonTabs,
+  )
   const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>(
     getTodayDateInputValue,
   )
   const [amountSearch, setAmountSearch] = useState('')
   const [amountTolerance, setAmountTolerance] = useState('0')
 
+  const activeTab = activePerson ? (personTabs[activePerson.id] ?? 'i_owe') : 'i_owe'
+
   useEffect(() => {
-    window.localStorage.setItem(ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY, activeTab)
-  }, [activeTab])
+    window.localStorage.setItem(
+      ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY,
+      JSON.stringify(personTabs),
+    )
+  }, [personTabs])
+
+  const handleTabSelect = (nextTab: PersonScreenTab) => {
+    if (!activePerson) {
+      return
+    }
+
+    setPersonTabs((prevTabs) => ({
+      ...prevTabs,
+      [activePerson.id]: nextTab,
+    }))
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'transactions' || areTransactionsLoaded) {
+      return
+    }
+
+    void onRequestTransactions()
+  }, [activeTab, areTransactionsLoaded, onRequestTransactions])
 
   const sortedTransactions = useMemo(
     () =>
@@ -198,48 +216,37 @@ export function StartScreen({
     [activeTransactions, amountSearch, amountTolerance, selectedHistoryDate],
   )
 
-  const balances = useMemo(() => {
+  const balancesForActivePerson = useMemo(() => {
     if (!activePerson) {
       return {
-        iOwe: [] as Array<{ personId: string; amount: number }>,
-        oweMe: [] as Array<{ personId: string; amount: number }>,
+        iOwe: [] as Array<{ personId: string; personName: string; amount: number }>,
+        oweMe: [] as Array<{ personId: string; personName: string; amount: number }>,
       }
     }
 
-    const netByPerson = new Map<string, number>()
+    const iOwe = balances
+      .filter((balance) => balance.debtorId === activePerson.id)
+      .map((balance) => ({
+        personId: balance.creditorId,
+        personName: balance.creditorName,
+        amount: balance.amountHkd,
+      }))
+      .sort((a, b) => b.amount - a.amount)
 
-    for (const transaction of sortedTransactions) {
-      const settlements = getSettlements(transaction)
+    const oweMe = balances
+      .filter((balance) => balance.creditorId === activePerson.id)
+      .map((balance) => ({
+        personId: balance.debtorId,
+        personName: balance.debtorName,
+        amount: balance.amountHkd,
+      }))
+      .sort((a, b) => b.amount - a.amount)
 
-      for (const settlement of settlements) {
-        if (settlement.debtorId === activePerson.id) {
-          netByPerson.set(
-            settlement.creditorId,
-            (netByPerson.get(settlement.creditorId) ?? 0) - settlement.amount,
-          )
-        }
-
-        if (settlement.creditorId === activePerson.id) {
-          netByPerson.set(
-            settlement.debtorId,
-            (netByPerson.get(settlement.debtorId) ?? 0) + settlement.amount,
-          )
-        }
-      }
+    return {
+      iOwe,
+      oweMe,
     }
-
-    const iOwe = [...netByPerson.entries()]
-      .filter(([, netAmount]) => netAmount < 0)
-      .map(([personId, netAmount]) => ({ personId, amount: Math.abs(netAmount) }))
-      .sort((a, b) => b.amount - a.amount)
-
-    const oweMe = [...netByPerson.entries()]
-      .filter(([, netAmount]) => netAmount > 0)
-      .map(([personId, netAmount]) => ({ personId, amount: netAmount }))
-      .sort((a, b) => b.amount - a.amount)
-
-    return { iOwe, oweMe }
-  }, [activePerson, sortedTransactions])
+  }, [activePerson, balances])
 
   return (
     <section className="card start-screen">
@@ -262,7 +269,7 @@ export function StartScreen({
                 className={`person-screen-tab ${
                   activeTab === tabKey ? 'person-screen-tab-active' : ''
                 }`}
-                onClick={() => setActiveTab(tabKey)}
+                onClick={() => handleTabSelect(tabKey)}
               >
                 {personScreenTabs[tabKey]}
               </button>
@@ -270,13 +277,16 @@ export function StartScreen({
           </div>
 
           {activeTab === 'i_owe' ? (
-            balances.iOwe.length === 0 ? (
+            balancesForActivePerson.iOwe.length === 0 ? (
               <p>Сейчас вы никому не должны.</p>
             ) : (
               <ul className="balance-list">
-                {balances.iOwe.map((entry) => (
+                {balancesForActivePerson.iOwe.map((entry) => (
                   <li key={entry.personId} className="balance-item">
-                    <PersonInline person={findPerson(entry.personId, people)} />
+                    <PersonInline
+                      person={findPerson(entry.personId, people)}
+                      fallbackName={entry.personName}
+                    />
                     <strong className="transaction-amount">
                       HK$ {entry.amount.toFixed(2)}
                     </strong>
@@ -287,13 +297,16 @@ export function StartScreen({
           ) : null}
 
           {activeTab === 'owe_me' ? (
-            balances.oweMe.length === 0 ? (
+            balancesForActivePerson.oweMe.length === 0 ? (
               <p>Сейчас вам никто не должен.</p>
             ) : (
               <ul className="balance-list">
-                {balances.oweMe.map((entry) => (
+                {balancesForActivePerson.oweMe.map((entry) => (
                   <li key={entry.personId} className="balance-item">
-                    <PersonInline person={findPerson(entry.personId, people)} />
+                    <PersonInline
+                      person={findPerson(entry.personId, people)}
+                      fallbackName={entry.personName}
+                    />
                     <strong className="transaction-amount">
                       HK$ {entry.amount.toFixed(2)}
                     </strong>
@@ -304,6 +317,14 @@ export function StartScreen({
           ) : null}
 
           {activeTab === 'transactions' ? (
+            isTransactionsLoading ? (
+              <div className="transactions-loading-state" aria-live="polite">
+                <div className="loader" aria-hidden="true" />
+                <p>Загружаем историю транзакций...</p>
+              </div>
+            ) : !areTransactionsLoaded ? (
+              <p>История пока не загружена.</p>
+            ) :
             activeTransactions.length === 0 ? (
               <p>Операций пока нет. Нажмите + справа снизу, чтобы добавить.</p>
             ) : (
@@ -349,27 +370,39 @@ export function StartScreen({
                 ) : (
                   <ul className="transactions-list">
                     {filteredActiveTransactions.map((transaction) => {
-                  const fromPerson = findPerson(transaction.fromPersonId, people)
-                  const toPerson = findPerson(transaction.toPersonId, people)
-                  const forPerson = transaction.forPersonId
-                    ? findPerson(transaction.forPersonId, people)
-                    : null
+                      const fromPerson = findPerson(transaction.fromPersonId, people)
+                      const toPerson = findPerson(transaction.toPersonId, people)
+                      const forPerson = transaction.forPersonId
+                        ? findPerson(transaction.forPersonId, people)
+                        : null
 
-                  return (
+                      return (
                       <li key={transaction.id} className="transaction-item">
                         <div className="transaction-meta">
                           <strong>{transactionTypeLabels[transaction.type]}</strong>
                           <span className="transaction-people-line">
-                            <PersonInline person={fromPerson} />
+                            <PersonInline
+                              person={fromPerson}
+                              fallbackName={transaction.fromPersonName}
+                            />
                             <span className="history-arrow">→</span>
-                            <PersonInline person={toPerson} />
+                            <PersonInline
+                              person={toPerson}
+                              fallbackName={transaction.toPersonName}
+                            />
                             {transaction.forPersonId ? (
                               <>
                                 <span className="history-for-text">за</span>
-                                <PersonInline person={forPerson} />
+                                <PersonInline
+                                  person={forPerson}
+                                  fallbackName={transaction.forPersonName ?? 'Удален'}
+                                />
                               </>
                             ) : null}
                           </span>
+                          {transaction.note ? (
+                            <p className="transaction-note">{transaction.note}</p>
+                          ) : null}
                         </div>
                         <strong className="transaction-amount">
                           HK$ {transaction.amountHkd.toFixed(2)}

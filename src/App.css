@@ -58,7 +58,13 @@ select {
   border-radius: 0.6rem;
   padding: 0.65rem 0.75rem;
   font: inherit;
-  background: #fff;
+  color: var(--text-strong);
+  background: var(--input-bg);
+}
+
+input {
+  color: var(--text-strong);
+  background: var(--input-bg);
 }
 
 input:focus-visible {
@@ -75,7 +81,7 @@ button {
   border: 0;
   border-radius: 0.6rem;
   background: var(--accent);
-  color: #fff;
+  color: var(--inverse-text);
   font: inherit;
   font-weight: 600;
   padding: 0.7rem 1rem;
@@ -94,8 +100,8 @@ button:disabled {
 }
 
 .secondary-button {
-  background: #edf3fc;
-  color: #1d3f70;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
 }
 
 .settings-icon-button {
@@ -105,17 +111,80 @@ button:disabled {
   padding: 0;
   display: grid;
   place-items: center;
-  background: #edf3fc;
-  color: #1d3f70;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
 }
 
 .settings-icon {
   display: block;
+  overflow: visible;
 }
 
 .error {
   margin-top: 0.5rem;
-  color: #a3202b;
+  color: var(--error-title);
+}
+
+.app-request-error {
+  margin: 0;
+}
+
+.error-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: var(--overlay-bg);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.error-overlay-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid var(--error-border);
+  background: var(--error-bg);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  box-shadow: 0 14px 34px rgba(16, 27, 46, 0.25);
+}
+
+.error-overlay-card h2 {
+  color: var(--error-title);
+  font-size: 1rem;
+}
+
+.error-overlay-card p {
+  color: var(--error-text);
+}
+
+.error-overlay-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-loading-card {
+  min-height: 180px;
+  display: grid;
+  place-content: center;
+  gap: 0.7rem;
+  justify-items: center;
+}
+
+.loader {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 3px solid var(--loader-track);
+  border-top-color: var(--loader-accent);
+  animation: loader-spin 0.9s linear infinite;
+}
+
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .tabs-title {
@@ -153,8 +222,8 @@ button:disabled {
   flex: 0 0 auto;
   align-items: center;
   gap: 0.45rem;
-  background: #f5f8fc;
-  color: #22354d;
+  background: var(--surface-soft-2);
+  color: var(--text-strong);
   border: 1px solid transparent;
   font-weight: 600;
   white-space: nowrap;
@@ -169,8 +238,8 @@ button:disabled {
 }
 
 .person-tab-active {
-  border-color: #7ba1d4;
-  background: #e8f1ff;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
 
 .person-color-dot {
@@ -190,6 +259,14 @@ button:disabled {
   display: grid;
   align-content: start;
   gap: 0.5rem;
+}
+
+.transactions-loading-state {
+  min-height: 140px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.65rem;
 }
 
 .history-filters {
@@ -234,14 +311,14 @@ button:disabled {
   min-height: 40px;
   padding: 0.52rem 0.45rem;
   border: 1px solid var(--line);
-  background: #f3f7fe;
-  color: #23405f;
+  background: var(--surface-soft-2);
+  color: var(--text-strong);
 }
 
 .person-screen-tab-active {
-  border-color: #6b92c5;
-  background: #dbe9fb;
-  color: #12375e;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--text-strong);
 }
 
 .balance-list {
@@ -260,7 +337,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 0.7rem;
   padding: 0.6rem 0.72rem;
-  background: #f9fbff;
+  background: var(--surface-soft);
 }
 
 .transaction-item {
@@ -271,7 +348,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 0.7rem;
   padding: 0.6rem 0.72rem;
-  background: #f9fbff;
+  background: var(--surface-soft);
 }
 
 .transaction-meta {
@@ -282,6 +359,14 @@ button:disabled {
 .transaction-meta span {
   color: var(--text-dim);
   font-size: 0.9rem;
+}
+
+.transaction-note {
+  margin-top: 0.2rem;
+  color: var(--note-text);
+  font-size: 0.88rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
 }
 
 .transaction-people-line {
@@ -302,8 +387,8 @@ button:disabled {
 }
 
 .person-color-dot-missing {
-  background: #c8ced8;
-  border-color: rgba(63, 73, 86, 0.28);
+  background: var(--missing-dot);
+  border-color: var(--missing-dot-border);
 }
 
 .history-arrow,
@@ -312,7 +397,7 @@ button:disabled {
 }
 
 .transaction-amount {
-  color: #0c3f79;
+  color: var(--amount-text);
   white-space: nowrap;
 }
 
