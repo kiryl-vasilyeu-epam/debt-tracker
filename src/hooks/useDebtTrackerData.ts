@@ -17,9 +17,14 @@ import type { DebtTransaction, NewDebtTransaction } from '../types/transaction'
 
 const ACTIVE_PERSON_STORAGE_KEY = 'debt-tracker-active-person-id-v1'
 
+const getStoredActivePersonId = (): string | null =>
+  window.localStorage.getItem(ACTIVE_PERSON_STORAGE_KEY)
+
 export const useDebtTrackerData = () => {
   const [people, setPeople] = useState<Person[]>([])
-  const [activePersonId, setActivePersonId] = useState<string | null>(null)
+  const [activePersonId, setActivePersonId] = useState<string | null>(
+    getStoredActivePersonId,
+  )
   const [transactions, setTransactions] = useState<DebtTransaction[]>([])
   const [areTransactionsLoaded, setAreTransactionsLoaded] = useState(false)
   const [isTransactionsLoading, setIsTransactionsLoading] = useState(false)
@@ -49,9 +54,7 @@ export const useDebtTrackerData = () => {
         setPeople(snapshot.people)
         setBalances(snapshot.balances)
 
-        const storedActivePersonId = window.localStorage.getItem(
-          ACTIVE_PERSON_STORAGE_KEY,
-        )
+        const storedActivePersonId = getStoredActivePersonId()
         if (
           storedActivePersonId &&
           snapshot.people.some((person) => person.id === storedActivePersonId)
