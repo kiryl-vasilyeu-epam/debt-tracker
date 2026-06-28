@@ -641,16 +641,17 @@ button:disabled {
   html,
   body,
   #root {
-    height: 100dvh;
+    height: 100svh;
     overflow: hidden;
+    overscroll-behavior-y: none;
   }
 
   .app {
     width: calc(100vw - 0.8rem);
-    height: 100dvh;
-    max-height: 100dvh;
-    padding-top: 0.8rem;
-    padding-bottom: 0.8rem;
+    height: 100svh;
+    max-height: 100svh;
+    padding-top: calc(0.45rem + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(0.8rem + env(safe-area-inset-bottom, 0px));
     grid-template-rows: auto auto minmax(0, 1fr);
     overflow: hidden;
   }
@@ -662,6 +663,9 @@ button:disabled {
 
   .top-bar {
     gap: 0.5rem;
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 20;
   }
 
   .start-screen {
@@ -673,6 +677,7 @@ button:disabled {
   .person-tab-content {
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .transaction-item {
