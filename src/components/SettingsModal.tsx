@@ -279,7 +279,9 @@ export function SettingsModal({
                 aria-label="Выбрать точный цвет"
                 title="Выбрать цвет"
               />
-              <span className="custom-color-value">{selectedColorHex.toUpperCase()}</span>
+              <label htmlFor="new-person-color" className="custom-color-value">
+                {selectedColorHex.toUpperCase()}
+              </label>
             </div>
 
             <button type="submit" disabled={isAddingPerson}>
@@ -291,13 +293,18 @@ export function SettingsModal({
         {error ? <p className="error">{error}</p> : null}
 
         <ul className="people-list">
-          {people.map((person) => (
+          {people.map((person) => {
+            const personColorHex = normalizeColorToHex(person.color)
+            const personColorInputId = `person-color-${person.id}`
+
+            return (
             <li key={person.id}>
               <div className="person-meta">
                 <input
+                  id={personColorInputId}
                   type="color"
                   className="person-color-dot-picker"
-                  value={normalizeColorToHex(person.color)}
+                  value={personColorHex}
                   onChange={(event) => {
                     void onUpdatePersonColor(person.id, event.target.value)
                   }}
@@ -308,7 +315,9 @@ export function SettingsModal({
                   aria-label={`Изменить цвет для ${person.name}`}
                   title={`Изменить цвет для ${person.name}`}
                 />
-                <span>{person.name}</span>
+                <label htmlFor={personColorInputId} className="person-color-label">
+                  <span>{person.name}</span>
+                </label>
               </div>
               <button
                 type="button"
@@ -327,7 +336,7 @@ export function SettingsModal({
                 )}
               </button>
             </li>
-          ))}
+          )})}
         </ul>
       </section>
     </div>

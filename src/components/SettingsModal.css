@@ -157,6 +157,7 @@
     font-weight: 600;
     letter-spacing: 0.02em;
     white-space: nowrap;
+    cursor: pointer;
 }
 
 .people-list {
@@ -186,6 +187,21 @@
     align-items: center;
     gap: 0.5rem;
     min-width: 0;
+}
+
+.person-color-label {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.person-color-code {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
 }
 
 .person-color-dot-picker {
