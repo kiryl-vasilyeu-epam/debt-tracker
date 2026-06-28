@@ -114,9 +114,7 @@
 .danger-button {
     background: var(--danger-bg);
     color: var(--danger-text);
-    padding: 0.4rem 0.66rem;
-    font-size: 0.8rem;
-    min-height: 38px;
+    min-height: 34px;
 }
 
 @media (max-width: 760px) {

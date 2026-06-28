@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   clearLegacyLocalData,
   deletePersonRemote,
@@ -97,8 +97,16 @@ export const useDebtTrackerData = ({
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(
     null,
   )
+  const [updatingTransactionId, setUpdatingTransactionId] = useState<string | null>(
+    null,
+  )
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
+  const lastTransactionsMutationAtRef = useRef(0)
+
+  const markTransactionsMutation = useCallback(() => {
+    lastTransactionsMutationAtRef.current = Date.now()
+  }, [])
 
   const closeRequestError = useCallback(() => {
     setRequestError(null)
@@ -149,11 +157,17 @@ export const useDebtTrackerData = ({
       return
     }
 
+    const startedAt = Date.now()
+
     setIsTransactionsLoading(true)
     setRequestError(null)
 
     try {
       const loadedTransactions = await loadTransactions(people)
+      if (startedAt < lastTransactionsMutationAtRef.current) {
+        return
+      }
+
       setTransactions(loadedTransactions)
       setAreTransactionsLoaded(true)
     } catch {
@@ -233,6 +247,7 @@ export const useDebtTrackerData = ({
 
   const createTransaction = useCallback(
     async (transaction: NewDebtTransaction): Promise<string | null> => {
+      markTransactionsMutation()
       setIsCreatingTransaction(true)
       setRequestError(null)
 
@@ -265,11 +280,12 @@ export const useDebtTrackerData = ({
         setIsCreatingTransaction(false)
       }
     },
-    [areTransactionsLoaded, balances],
+    [areTransactionsLoaded, balances, markTransactionsMutation],
   )
 
   const deleteTransaction = useCallback(
     async (transactionId: string) => {
+      markTransactionsMutation()
       setDeletingTransactionId(transactionId)
       setRequestError(null)
 
@@ -304,7 +320,74 @@ export const useDebtTrackerData = ({
         setDeletingTransactionId(null)
       }
     },
-    [balances, transactions],
+    [balances, markTransactionsMutation, transactions],
+  )
+
+  const updateTransaction = useCallback(
+    async (
+      transactionId: string,
+      transaction: NewDebtTransaction,
+    ): Promise<string | null> => {
+      const previousTransaction = transactions.find(
+        (candidate) => candidate.id === transactionId,
+      )
+
+      if (!previousTransaction) {
+        return 'Операция не найдена. Обновите страницу и попробуйте снова.'
+      }
+
+      markTransactionsMutation()
+      setUpdatingTransactionId(transactionId)
+      setRequestError(null)
+
+      const nextTransaction: DebtTransaction = {
+        ...previousTransaction,
+        ...transaction,
+      }
+
+      const balancesWithoutPrevious = applyTransactionToBalances(
+        balances,
+        previousTransaction,
+        'remove',
+      )
+      const nextBalances = applyTransactionToBalances(
+        balancesWithoutPrevious,
+        nextTransaction,
+        'add',
+      )
+      let isOriginalDeleted = false
+
+      try {
+        await deleteTransactionRemote(transactionId)
+        isOriginalDeleted = true
+        await saveTransactionRemote(nextTransaction)
+        await saveBalancesRemote(nextBalances, balances)
+
+        setTransactions((prevTransactions) =>
+          prevTransactions.map((candidate) =>
+            candidate.id === transactionId ? nextTransaction : candidate,
+          ),
+        )
+        setBalances(nextBalances)
+        setAreTransactionsLoaded(true)
+
+        return null
+      } catch {
+        if (isOriginalDeleted) {
+          try {
+            await saveTransactionRemote(previousTransaction)
+          } catch {
+            // Best-effort rollback if replacing transaction failed midway.
+          }
+        }
+
+        setRequestError('Не удалось обновить операцию.')
+        return 'Не удалось обновить операцию. Проверьте подключение к базе.'
+      } finally {
+        setUpdatingTransactionId(null)
+      }
+    },
+    [balances, markTransactionsMutation, transactions],
   )
 
   useEffect(() => {
@@ -322,10 +405,14 @@ export const useDebtTrackerData = ({
 
       isPolling = true
       setIsBackgroundRefreshing(true)
+      const startedAt = Date.now()
 
       try {
         if (isHistoryOpen) {
           const nextTransactions = await loadTransactions(people)
+          if (startedAt < lastTransactionsMutationAtRef.current) {
+            return
+          }
 
           if (!isDisposed) {
             setTransactions((previousTransactions) =>
@@ -344,6 +431,9 @@ export const useDebtTrackerData = ({
             activePersonId,
             people,
           )
+          if (startedAt < lastTransactionsMutationAtRef.current) {
+            return
+          }
 
           if (!isDisposed) {
             setTransactions((previousTransactions) =>
@@ -402,6 +492,7 @@ export const useDebtTrackerData = ({
     removingPersonId,
     isCreatingTransaction,
     deletingTransactionId,
+    updatingTransactionId,
     isBackgroundRefreshing,
     requestError,
     closeRequestError,
@@ -410,5 +501,6 @@ export const useDebtTrackerData = ({
     removePerson,
     createTransaction,
     deleteTransaction,
+    updateTransaction,
   }
 }

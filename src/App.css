@@ -99,6 +99,21 @@ button:disabled {
   cursor: default;
 }
 
+.icon-action-button {
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-action-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 .secondary-button {
   background: var(--secondary-bg);
   color: var(--secondary-text);
@@ -164,6 +179,22 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.delete-confirmation-card {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.delete-confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.danger-button {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
 .app-loading-card {
   min-height: 180px;
   display: grid;
@@ -179,6 +210,16 @@ button:disabled {
   border: 3px solid var(--loader-track);
   border-top-color: var(--loader-accent);
   animation: loader-spin 0.9s linear infinite;
+}
+
+.loader-inline {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  border-top-color: currentColor;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: currentColor;
 }
 
 @keyframes loader-spin {
@@ -369,6 +410,32 @@ button:disabled {
   background: var(--surface-soft);
 }
 
+.balance-item-updated {
+  animation: balance-item-flash 1s ease;
+}
+
+@keyframes balance-item-flash {
+  0% {
+    background: var(--surface-soft);
+  }
+
+  20% {
+    background: var(--accent-soft);
+  }
+
+  45% {
+    background: var(--surface-soft);
+  }
+
+  70% {
+    background: var(--accent-soft);
+  }
+
+  100% {
+    background: var(--surface-soft);
+  }
+}
+
 .transaction-item {
   display: flex;
   align-items: center;
@@ -436,6 +503,30 @@ button:disabled {
   gap: 0.2rem;
 }
 
+.history-item-buttons {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.history-edit-button,
+.history-delete-button {
+  min-height: 30px;
+  padding: 0.3rem 0.56rem;
+  font-size: 0.78rem;
+}
+
+.history-edit-button {
+  background: #1f6ed4;
+  color: #ffffff;
+}
+
+.history-delete-button {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
 .history-date {
   color: var(--text-dim);
   font-size: 0.82rem;
@@ -468,6 +559,10 @@ button:disabled {
 
   .transaction-side {
     justify-items: start;
+  }
+
+  .history-item-buttons {
+    justify-content: flex-start;
   }
 
   .person-screen-tabs {

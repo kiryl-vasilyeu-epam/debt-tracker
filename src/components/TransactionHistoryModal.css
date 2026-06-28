@@ -30,6 +30,13 @@
     gap: 0.5rem;
 }
 
+.history-item-buttons {
+    display: inline-flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .history-date {
     color: var(--text-dim);
     font-size: 0.82rem;
@@ -63,11 +70,15 @@
 }
 
 .history-delete-button {
-    min-height: 30px;
-    padding: 0.3rem 0.56rem;
-    font-size: 0.78rem;
+    min-height: 34px;
     background: var(--danger-bg);
     color: var(--danger-text);
+}
+
+.history-edit-button {
+    min-height: 34px;
+    background: #1f6ed4;
+    color: #ffffff;
 }
 
 @media (max-width: 760px) {
@@ -79,5 +90,9 @@
         align-items: flex-start;
         flex-direction: column;
         gap: 0.35rem;
+    }
+
+    .history-item-buttons {
+        justify-content: flex-start;
     }
 }

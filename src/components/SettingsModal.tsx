@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useModalBehavior } from '../hooks/useModalBehavior'
+import { TrashIcon } from './ActionIcons'
 import {
   generatePersonColor,
   generateRandomPersonColorOptions,
@@ -13,7 +14,7 @@ type SettingsModalProps = {
   people: Person[]
   onClose: () => void
   onAddPerson: (name: string, color: string) => Promise<string | null>
-  onRemovePerson: (id: string) => Promise<void>
+  onRequestRemovePerson: (person: Person) => void
   isAddingPerson: boolean
   removingPersonId: string | null
 }
@@ -23,7 +24,7 @@ export function SettingsModal({
   people,
   onClose,
   onAddPerson,
-  onRemovePerson,
+  onRequestRemovePerson,
   isAddingPerson,
   removingPersonId,
 }: SettingsModalProps) {
@@ -128,13 +129,19 @@ export function SettingsModal({
               </div>
               <button
                 type="button"
-                className="danger-button"
+                className="danger-button icon-action-button"
                 onClick={() => {
-                  void onRemovePerson(person.id)
+                  onRequestRemovePerson(person)
                 }}
                 disabled={removingPersonId === person.id}
+                aria-label="Удалить человека"
+                title="Удалить человека"
               >
-                {removingPersonId === person.id ? 'Удаление...' : 'Удалить'}
+                {removingPersonId === person.id ? (
+                  <span className="loader loader-inline" aria-hidden="true" />
+                ) : (
+                  <TrashIcon />
+                )}
               </button>
             </li>
           ))}

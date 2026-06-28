@@ -5,12 +5,26 @@ import { SettingsModal } from './components/SettingsModal'
 import { StartScreen } from './components/StartScreen'
 import { TransactionHistoryModal } from './components/TransactionHistoryModal'
 import { useDebtTrackerData } from './hooks/useDebtTrackerData'
+import type { Person } from './types/person'
+import type { NewDebtTransaction } from './types/transaction'
 import type { PersonScreenTab } from './types/ui'
 import './App.css'
 
 const THEME_STORAGE_KEY = 'debt-tracker-theme-v1'
 
 type AppTheme = 'light' | 'dark'
+
+type PendingDeleteRequest =
+  | {
+      kind: 'person'
+      id: string
+      label: string
+    }
+  | {
+      kind: 'transaction'
+      id: string
+      label: string
+    }
 
 const getInitialTheme = (): AppTheme => {
   const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
@@ -29,6 +43,8 @@ function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false)
   const [activePersonTab, setActivePersonTab] = useState<PersonScreenTab>('i_owe')
+  const [pendingDeleteRequest, setPendingDeleteRequest] =
+    useState<PendingDeleteRequest | null>(null)
   const {
     people,
     activePersonId,
@@ -42,6 +58,7 @@ function App() {
     removingPersonId,
     isCreatingTransaction,
     deletingTransactionId,
+    updatingTransactionId,
     isBackgroundRefreshing,
     requestError,
     closeRequestError,
@@ -50,6 +67,7 @@ function App() {
     removePerson,
     createTransaction,
     deleteTransaction,
+    updateTransaction,
   } = useDebtTrackerData({
     activePersonTab,
     isHistoryOpen,
@@ -61,6 +79,52 @@ function App() {
   }, [theme])
 
   const activePerson = people.find((person) => person.id === activePersonId) ?? null
+
+  const handleDeleteTransaction = async (transactionId: string) => {
+    setPendingDeleteRequest({
+      kind: 'transaction',
+      id: transactionId,
+      label: 'эту операцию',
+    })
+  }
+
+  const handleRequestRemovePerson = (person: Person) => {
+    setPendingDeleteRequest({
+      kind: 'person',
+      id: person.id,
+      label: `человека ${person.name}`,
+    })
+  }
+
+  const isDeleteConfirmationPending =
+    pendingDeleteRequest?.kind === 'person'
+      ? removingPersonId === pendingDeleteRequest.id
+      : pendingDeleteRequest?.kind === 'transaction'
+        ? deletingTransactionId === pendingDeleteRequest.id
+        : false
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteRequest) {
+      return
+    }
+
+    try {
+      if (pendingDeleteRequest.kind === 'person') {
+        await removePerson(pendingDeleteRequest.id)
+      } else {
+        await deleteTransaction(pendingDeleteRequest.id)
+      }
+
+      setPendingDeleteRequest(null)
+    } catch {
+      // Error overlay is already handled by requestError state.
+    }
+  }
+
+  const handleUpdateTransaction = async (
+    transactionId: string,
+    transaction: NewDebtTransaction,
+  ) => updateTransaction(transactionId, transaction)
 
   if (isInitialLoading) {
     return (
@@ -188,8 +252,10 @@ function App() {
         areTransactionsLoaded={areTransactionsLoaded}
         isTransactionsLoading={isTransactionsLoading}
         onRequestTransactions={ensureTransactionsLoaded}
-        onDeleteTransaction={deleteTransaction}
+        onDeleteTransaction={handleDeleteTransaction}
+        onUpdateTransaction={handleUpdateTransaction}
         deletingTransactionId={deletingTransactionId}
+        updatingTransactionId={updatingTransactionId}
         isBackgroundRefreshing={isBackgroundRefreshing}
         onActiveTabChange={setActivePersonTab}
       />
@@ -202,6 +268,41 @@ function App() {
             <div className="error-overlay-actions">
               <button type="button" onClick={closeRequestError}>
                 Понятно
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {pendingDeleteRequest ? (
+        <div className="error-overlay" role="alertdialog" aria-modal="true">
+          <section className="error-overlay-card delete-confirmation-card">
+            <h2>Подтвердите удаление</h2>
+            <p>Вы уверены, что хотите удалить {pendingDeleteRequest.label}?</p>
+            <div className="delete-confirmation-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setPendingDeleteRequest(null)}
+                disabled={isDeleteConfirmationPending}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={() => {
+                  void handleConfirmDelete()
+                }}
+                disabled={isDeleteConfirmationPending}
+                aria-label="Подтвердить удаление"
+                title="Подтвердить удаление"
+              >
+                {isDeleteConfirmationPending ? (
+                  <span className="loader loader-inline" aria-hidden="true" />
+                ) : (
+                  'Удалить'
+                )}
               </button>
             </div>
           </section>
@@ -226,7 +327,7 @@ function App() {
           people={people}
           onClose={() => setIsSettingsOpen(false)}
           onAddPerson={addPerson}
-          onRemovePerson={removePerson}
+          onRequestRemovePerson={handleRequestRemovePerson}
           isAddingPerson={isAddingPerson}
           removingPersonId={removingPersonId}
         />
@@ -237,9 +338,11 @@ function App() {
           isOpen={isHistoryOpen}
           people={people}
           transactions={transactions}
-          onDeleteTransaction={deleteTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
+          onUpdateTransaction={handleUpdateTransaction}
           onClose={() => setIsHistoryOpen(false)}
           deletingTransactionId={deletingTransactionId}
+          updatingTransactionId={updatingTransactionId}
           isTransactionsLoading={isTransactionsLoading}
         />
       ) : null}

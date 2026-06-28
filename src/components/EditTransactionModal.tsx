@@ -2,16 +2,23 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useModalBehavior } from '../hooks/useModalBehavior'
 import type { Person } from '../types/person'
-import type { NewDebtTransaction, TransactionType } from '../types/transaction'
+import type {
+  DebtTransaction,
+  NewDebtTransaction,
+  TransactionType,
+} from '../types/transaction'
 import './AddTransactionModal.css'
 
-type AddTransactionModalProps = {
+type EditTransactionModalProps = {
   isOpen: boolean
   people: Person[]
-  defaultWhoId: string | null
+  transaction: DebtTransaction
   onClose: () => void
-  onCreate: (transaction: NewDebtTransaction) => Promise<string | null>
-  isCreating: boolean
+  onUpdate: (
+    transactionId: string,
+    transaction: NewDebtTransaction,
+  ) => Promise<string | null>
+  updatingTransactionId: string | null
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
@@ -36,46 +43,22 @@ const formatPersonName = (personId: string, people: Person[]) => {
 const getPersonById = (personId: string, people: Person[]) =>
   people.find((person) => person.id === personId) ?? null
 
-export function AddTransactionModal({
+export function EditTransactionModal({
   isOpen,
   people,
-  defaultWhoId,
+  transaction,
   onClose,
-  onCreate,
-  isCreating,
-}: AddTransactionModalProps) {
-  const initialWhoId =
-    defaultWhoId && people.some((person) => person.id === defaultWhoId)
-      ? defaultWhoId
-      : people[0]?.id ?? ''
-
-  const initialToWhomId = ''
-
-  const initialForWhomId = ''
-
-  const [type, setType] = useState<TransactionType>('took')
-  const [whoId, setWhoId] = useState<string>(initialWhoId)
-  const [toWhomId, setToWhomId] = useState<string>(initialToWhomId)
-  const [forWhomId, setForWhomId] = useState<string>(initialForWhomId)
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
+  onUpdate,
+  updatingTransactionId,
+}: EditTransactionModalProps) {
+  const [type, setType] = useState<TransactionType>(transaction.type)
+  const [whoId, setWhoId] = useState<string>(transaction.fromPersonId)
+  const [toWhomId, setToWhomId] = useState<string>(transaction.toPersonId)
+  const [forWhomId, setForWhomId] = useState<string>(transaction.forPersonId ?? '')
+  const [amount, setAmount] = useState(String(Math.round(transaction.amountHkd)))
+  const [note, setNote] = useState(transaction.note ?? '')
   const [error, setError] = useState<string | null>(null)
   const typeGroupRef = useRef<HTMLDivElement | null>(null)
-
-  const availableToPeople = useMemo(
-    () => people.filter((person) => person.id !== whoId),
-    [people, whoId],
-  )
-
-  const availableForPeople = useMemo(
-    () => people.filter((person) => person.id !== whoId),
-    [people, whoId],
-  )
-
-  const selectedWho = getPersonById(whoId, people)
-  const selectedTo = getPersonById(toWhomId, people)
-  const selectedFor = getPersonById(forWhomId, people)
-  const toWhomLabel = type === 'took' ? 'У кого' : 'Кому'
 
   useModalBehavior(isOpen, onClose)
 
@@ -108,6 +91,38 @@ export function AddTransactionModal({
       behavior: 'auto',
     })
   }, [type])
+
+  const availableToPeople = useMemo(
+    () => people.filter((person) => person.id !== whoId),
+    [people, whoId],
+  )
+
+  const availableForPeople = useMemo(
+    () => people.filter((person) => person.id !== whoId),
+    [people, whoId],
+  )
+
+  const selectedWho = getPersonById(whoId, people)
+  const selectedTo = getPersonById(toWhomId, people)
+  const selectedFor = getPersonById(forWhomId, people)
+  const toWhomLabel = type === 'took' ? 'У кого' : 'Кому'
+  const isUpdatingCurrentTransaction = updatingTransactionId === transaction.id
+
+  const handleWhoChange = (nextWhoId: string) => {
+    setWhoId(nextWhoId)
+
+    if (toWhomId === nextWhoId) {
+      const nextToWhom =
+        people.find((person) => person.id !== nextWhoId)?.id ?? ''
+      setToWhomId(nextToWhom)
+    }
+
+    if (forWhomId === nextWhoId) {
+      const nextForWhom =
+        people.find((person) => person.id !== nextWhoId)?.id ?? ''
+      setForWhomId(nextForWhom)
+    }
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -148,7 +163,7 @@ export function AddTransactionModal({
     const resolvedForName =
       type === 'gave_for' ? formatPersonName(forWhomId, people) : null
 
-    const createError = await onCreate({
+    const updateError = await onUpdate(transaction.id, {
       type,
       fromPersonId: whoId,
       fromPersonName: whoName || 'Удален',
@@ -160,38 +175,13 @@ export function AddTransactionModal({
       note: note.trim() ? note.trim().slice(0, 280) : null,
     })
 
-    if (createError) {
-      setError(createError)
+    if (updateError) {
+      setError(updateError)
       return
     }
 
     setError(null)
-    setAmount('')
-    setNote('')
-
-    if (type !== 'gave_for') {
-      setForWhomId(toWhomId)
-    }
-
-    if (whoName && toName) {
-      onClose()
-    }
-  }
-
-  const handleWhoChange = (nextWhoId: string) => {
-    setWhoId(nextWhoId)
-
-    if (toWhomId === nextWhoId) {
-      const nextToWhom =
-        people.find((person) => person.id !== nextWhoId)?.id ?? ''
-      setToWhomId(nextToWhom)
-    }
-
-    if (forWhomId === nextWhoId) {
-      const nextForWhom =
-        people.find((person) => person.id !== nextWhoId)?.id ?? ''
-      setForWhomId(nextForWhom)
-    }
+    onClose()
   }
 
   if (!isOpen) {
@@ -211,10 +201,10 @@ export function AddTransactionModal({
         className={`modal add-transaction-modal ${transactionTypeToneClass[type]}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Новая операция"
+        aria-label="Редактирование операции"
       >
         <header className="modal-header">
-          <h2>Новая операция</h2>
+          <h2>Редактирование операции</h2>
           <button type="button" className="modal-close-button" onClick={onClose}>
             Закрыть
           </button>
@@ -228,25 +218,24 @@ export function AddTransactionModal({
             role="radiogroup"
             aria-label="Тип операции"
           >
-            {transactionTypeOrder.map(
-              (transactionType) => (
-                <button
-                  key={transactionType}
-                  type="button"
-                  role="radio"
-                  aria-checked={type === transactionType}
-                  className={`transaction-type-button ${
-                    type === transactionType ? 'transaction-type-button-active' : ''
-                  }`}
-                  onClick={() => setType(transactionType)}
-                >
-                  {transactionTypeLabels[transactionType]}
-                </button>
-              ),
-            )}
+            {transactionTypeOrder.map((transactionType) => (
+              <button
+                key={transactionType}
+                type="button"
+                role="radio"
+                aria-checked={type === transactionType}
+                className={`transaction-type-button ${
+                  type === transactionType ? 'transaction-type-button-active' : ''
+                }`}
+                onClick={() => setType(transactionType)}
+                disabled={isUpdatingCurrentTransaction}
+              >
+                {transactionTypeLabels[transactionType]}
+              </button>
+            ))}
           </div>
 
-          <label htmlFor="transaction-who">Кто</label>
+          <label htmlFor="edit-transaction-who">Кто</label>
           <div className="person-select-row">
             <span
               className={`person-color-dot ${selectedWho ? '' : 'person-color-dot-placeholder'}`}
@@ -254,11 +243,14 @@ export function AddTransactionModal({
               aria-hidden="true"
             />
             <select
-              id="transaction-who"
+              id="edit-transaction-who"
               value={whoId}
               onChange={(event) => handleWhoChange(event.target.value)}
-              disabled={isCreating}
+              disabled={isUpdatingCurrentTransaction}
             >
+              <option value="" disabled hidden>
+                Выберите человека
+              </option>
               {people.map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.name}
@@ -267,7 +259,7 @@ export function AddTransactionModal({
             </select>
           </div>
 
-          <label htmlFor="transaction-to">{toWhomLabel}</label>
+          <label htmlFor="edit-transaction-to">{toWhomLabel}</label>
           <div className="person-select-row">
             <span
               className={`person-color-dot ${selectedTo ? '' : 'person-color-dot-placeholder'}`}
@@ -275,10 +267,10 @@ export function AddTransactionModal({
               aria-hidden="true"
             />
             <select
-              id="transaction-to"
+              id="edit-transaction-to"
               value={toWhomId}
               onChange={(event) => setToWhomId(event.target.value)}
-              disabled={isCreating}
+              disabled={isUpdatingCurrentTransaction}
             >
               <option value="" disabled hidden>
                 Выберите человека
@@ -293,7 +285,7 @@ export function AddTransactionModal({
 
           {type === 'gave_for' ? (
             <>
-              <label htmlFor="transaction-for">За кого</label>
+              <label htmlFor="edit-transaction-for">За кого</label>
               <div className="person-select-row">
                 <span
                   className={`person-color-dot ${selectedFor ? '' : 'person-color-dot-placeholder'}`}
@@ -301,10 +293,10 @@ export function AddTransactionModal({
                   aria-hidden="true"
                 />
                 <select
-                  id="transaction-for"
+                  id="edit-transaction-for"
                   value={forWhomId}
                   onChange={(event) => setForWhomId(event.target.value)}
-                  disabled={isCreating}
+                  disabled={isUpdatingCurrentTransaction}
                 >
                   <option value="" disabled hidden>
                     Выберите человека
@@ -319,11 +311,11 @@ export function AddTransactionModal({
             </>
           ) : null}
 
-          <label htmlFor="transaction-amount">Сумма (HKD)</label>
+          <label htmlFor="edit-transaction-amount">Сумма (HKD)</label>
           <div className="amount-input-wrap">
             <span aria-hidden="true">HK$</span>
             <input
-              id="transaction-amount"
+              id="edit-transaction-amount"
               type="number"
               inputMode="numeric"
               min="0"
@@ -331,25 +323,29 @@ export function AddTransactionModal({
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0"
-              disabled={isCreating}
+              disabled={isUpdatingCurrentTransaction}
             />
           </div>
 
-          <label htmlFor="transaction-note">Заметка (необязательно)</label>
+          <label htmlFor="edit-transaction-note">Заметка (необязательно)</label>
           <textarea
-            id="transaction-note"
+            id="edit-transaction-note"
             value={note}
             onChange={(event) => setNote(event.target.value)}
             maxLength={280}
             rows={3}
             placeholder="Короткий комментарий"
-            disabled={isCreating}
+            disabled={isUpdatingCurrentTransaction}
           />
 
           {error ? <p className="error">{error}</p> : null}
 
-          <button type="submit" className="save-transaction-button" disabled={isCreating}>
-            {isCreating ? 'Сохранение...' : 'Сохранить'}
+          <button
+            type="submit"
+            className="save-transaction-button"
+            disabled={isUpdatingCurrentTransaction}
+          >
+            {isUpdatingCurrentTransaction ? 'Сохранение...' : 'Сохранить'}
           </button>
         </form>
       </section>

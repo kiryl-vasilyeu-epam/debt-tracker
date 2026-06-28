@@ -1,7 +1,13 @@
 import { useState } from 'react'
+import { PencilIcon, TrashIcon } from './ActionIcons'
+import { EditTransactionModal } from './EditTransactionModal'
 import { useModalBehavior } from '../hooks/useModalBehavior'
 import type { Person } from '../types/person'
-import type { DebtTransaction, TransactionType } from '../types/transaction'
+import type {
+  DebtTransaction,
+  NewDebtTransaction,
+  TransactionType,
+} from '../types/transaction'
 import './TransactionHistoryModal.css'
 
 type TransactionHistoryModalProps = {
@@ -9,8 +15,13 @@ type TransactionHistoryModalProps = {
   people: Person[]
   transactions: DebtTransaction[]
   onDeleteTransaction: (transactionId: string) => Promise<void>
+  onUpdateTransaction: (
+    transactionId: string,
+    transaction: NewDebtTransaction,
+  ) => Promise<string | null>
   onClose: () => void
   deletingTransactionId: string | null
+  updatingTransactionId: string | null
   isTransactionsLoading: boolean
 }
 
@@ -151,8 +162,10 @@ export function TransactionHistoryModal({
   people,
   transactions,
   onDeleteTransaction,
+  onUpdateTransaction,
   onClose,
   deletingTransactionId,
+  updatingTransactionId,
   isTransactionsLoading,
 }: TransactionHistoryModalProps) {
   const [selectedDateFrom, setSelectedDateFrom] = useState<string>(
@@ -162,6 +175,8 @@ export function TransactionHistoryModal({
   const [isDatePeriodEnabled, setIsDatePeriodEnabled] = useState(false)
   const [amountSearch, setAmountSearch] = useState('')
   const [amountTolerance, setAmountTolerance] = useState('0')
+  const [editingTransaction, setEditingTransaction] =
+    useState<DebtTransaction | null>(null)
 
   useModalBehavior(isOpen, onClose)
 
@@ -190,21 +205,22 @@ export function TransactionHistoryModal({
   )
 
   return (
-    <div
-      className="modal-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose()
-        }
-      }}
-    >
-      <section className="modal history-modal" role="dialog" aria-modal="true" aria-label="История операций">
-        <header className="modal-header">
-          <h2>История операций</h2>
-          <button type="button" className="modal-close-button" onClick={onClose}>
-            Закрыть
-          </button>
-        </header>
+    <>
+      <div
+        className="modal-overlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            onClose()
+          }
+        }}
+      >
+        <section className="modal history-modal" role="dialog" aria-modal="true" aria-label="История операций">
+          <header className="modal-header">
+            <h2>История операций</h2>
+            <button type="button" className="modal-close-button" onClick={onClose}>
+              Закрыть
+            </button>
+          </header>
 
         <div className="history-filters" aria-label="Фильтры общей истории">
           <label htmlFor="global-history-date-from">День</label>
@@ -250,8 +266,8 @@ export function TransactionHistoryModal({
             <input
               id="global-history-amount"
               type="number"
-              inputMode="decimal"
-              step="0.01"
+              inputMode="numeric"
+              step="1"
               min="0"
               value={amountSearch}
               onChange={(event) => setAmountSearch(event.target.value)}
@@ -263,8 +279,8 @@ export function TransactionHistoryModal({
             <input
               aria-label="Допуск суммы"
               type="number"
-              inputMode="decimal"
-              step="0.01"
+              inputMode="numeric"
+              step="1"
               min="0"
               value={amountTolerance}
               onChange={(event) => setAmountTolerance(event.target.value)}
@@ -272,66 +288,99 @@ export function TransactionHistoryModal({
           </div>
         </div>
 
-        {isTransactionsLoading ? (
-          <div className="transactions-loading-state" aria-live="polite">
-            <div className="loader" aria-hidden="true" />
-            <p>Загружаем историю транзакций...</p>
-          </div>
-        ) : sortedTransactions.length === 0 ? (
-          <p>Операций пока нет.</p>
-        ) : filteredTransactions.length === 0 ? (
-          <p>По выбранному периоду и сумме операций не найдено.</p>
-        ) : (
-          <ul className="history-list">
-            {filteredTransactions.map((transaction) => {
-              const from = findPerson(transaction.fromPersonId, people)
-              const to = findPerson(transaction.toPersonId, people)
-              const forPerson = transaction.forPersonId
-                ? findPerson(transaction.forPersonId, people)
-                : null
+          {isTransactionsLoading ? (
+            <div className="transactions-loading-state" aria-live="polite">
+              <div className="loader" aria-hidden="true" />
+              <p>Загружаем историю транзакций...</p>
+            </div>
+          ) : sortedTransactions.length === 0 ? (
+            <p>Операций пока нет.</p>
+          ) : filteredTransactions.length === 0 ? (
+            <p>По выбранному периоду и сумме операций не найдено.</p>
+          ) : (
+            <ul className="history-list">
+              {filteredTransactions.map((transaction) => {
+                const from = findPerson(transaction.fromPersonId, people)
+                const to = findPerson(transaction.toPersonId, people)
+                const forPerson = transaction.forPersonId
+                  ? findPerson(transaction.forPersonId, people)
+                  : null
 
-              return (
-                <li key={transaction.id} className="history-item">
-                  <strong>{transactionTypeLabels[transaction.type]}</strong>
-                  <p className="history-people-line">
-                    <PersonInline person={from} fallbackName={transaction.fromPersonName} />
-                    <span className="history-arrow">{betweenPeopleLabel[transaction.type]}</span>
-                    <PersonInline person={to} fallbackName={transaction.toPersonName} />
-                    {transaction.forPersonId ? (
-                      <>
-                        <span className="history-for-text">за</span>
-                        <PersonInline
-                          person={forPerson}
-                          fallbackName={transaction.forPersonName ?? 'Удален'}
-                        />
-                      </>
-                    ) : null}
-                  </p>
-                  {transaction.note ? <p className="transaction-note">{transaction.note}</p> : null}
-                  <strong className="transaction-amount">HK$ {transaction.amountHkd.toFixed(2)}</strong>
-                  <div className="history-item-actions">
-                    <span className="history-date">{formatDate(transaction.createdAt)}</span>
-                    <button
-                      type="button"
-                      className="history-delete-button"
-                      onClick={() => {
-                        void onDeleteTransaction(transaction.id)
-                      }}
-                      aria-label="Удалить операцию"
-                      title="Удалить операцию"
-                      disabled={deletingTransactionId === transaction.id}
-                    >
-                      {deletingTransactionId === transaction.id
-                        ? 'Удаление...'
-                        : 'Удалить'}
-                    </button>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
-    </div>
+                return (
+                  <li key={transaction.id} className="history-item">
+                    <strong>{transactionTypeLabels[transaction.type]}</strong>
+                    <p className="history-people-line">
+                      <PersonInline person={from} fallbackName={transaction.fromPersonName} />
+                      <span className="history-arrow">{betweenPeopleLabel[transaction.type]}</span>
+                      <PersonInline person={to} fallbackName={transaction.toPersonName} />
+                      {transaction.forPersonId ? (
+                        <>
+                          <span className="history-for-text">за</span>
+                          <PersonInline
+                            person={forPerson}
+                            fallbackName={transaction.forPersonName ?? 'Удален'}
+                          />
+                        </>
+                      ) : null}
+                    </p>
+                    {transaction.note ? <p className="transaction-note">{transaction.note}</p> : null}
+                    <strong className="transaction-amount">HK$ {Math.round(transaction.amountHkd)}</strong>
+                    <div className="history-item-actions">
+                      <span className="history-date">{formatDate(transaction.createdAt)}</span>
+                      <div className="history-item-buttons">
+                        <button
+                          type="button"
+                          className="history-edit-button icon-action-button"
+                          onClick={() => setEditingTransaction(transaction)}
+                          aria-label="Редактировать операцию"
+                          title="Редактировать операцию"
+                          disabled={
+                            deletingTransactionId === transaction.id ||
+                            updatingTransactionId === transaction.id
+                          }
+                        >
+                          {updatingTransactionId === transaction.id
+                            ? <span className="loader loader-inline" aria-hidden="true" />
+                            : <PencilIcon />}
+                        </button>
+                        <button
+                          type="button"
+                          className="history-delete-button icon-action-button"
+                          onClick={() => {
+                            void onDeleteTransaction(transaction.id)
+                          }}
+                          aria-label="Удалить операцию"
+                          title="Удалить операцию"
+                          disabled={
+                            deletingTransactionId === transaction.id ||
+                            updatingTransactionId === transaction.id
+                          }
+                        >
+                          {deletingTransactionId === transaction.id
+                            ? <span className="loader loader-inline" aria-hidden="true" />
+                            : <TrashIcon />}
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      {editingTransaction ? (
+        <EditTransactionModal
+          key={editingTransaction.id}
+          isOpen
+          people={people}
+          transaction={editingTransaction}
+          onClose={() => setEditingTransaction(null)}
+          onUpdate={onUpdateTransaction}
+          updatingTransactionId={updatingTransactionId}
+        />
+      ) : null}
+    </>
   )
 }

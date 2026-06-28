@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { PencilIcon, TrashIcon } from './ActionIcons'
+import { EditTransactionModal } from './EditTransactionModal'
 import type { DebtBalance } from '../types/balance'
 import type { Person } from '../types/person'
-import type { DebtTransaction, TransactionType } from '../types/transaction'
+import type {
+  DebtTransaction,
+  NewDebtTransaction,
+  TransactionType,
+} from '../types/transaction'
 import type { PersonScreenTab } from '../types/ui'
 
 type StartScreenProps = {
@@ -13,7 +19,12 @@ type StartScreenProps = {
   isTransactionsLoading: boolean
   onRequestTransactions: () => Promise<void>
   onDeleteTransaction: (transactionId: string) => Promise<void>
+  onUpdateTransaction: (
+    transactionId: string,
+    transaction: NewDebtTransaction,
+  ) => Promise<string | null>
   deletingTransactionId: string | null
+  updatingTransactionId: string | null
   isBackgroundRefreshing: boolean
   onActiveTabChange?: (tab: PersonScreenTab) => void
 }
@@ -50,7 +61,7 @@ const personScreenTabs: Record<PersonScreenTab, string> = {
   transactions: 'Транзакции',
 }
 
-const formatAmount = (amount: number) => `HK$ ${amount.toFixed(2)}`
+const formatAmount = (amount: number) => `HK$ ${Math.round(amount)}`
 
 const ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY =
   'debt-tracker-active-person-screen-tab-by-person-v1'
@@ -196,7 +207,9 @@ export function StartScreen({
   isTransactionsLoading,
   onRequestTransactions,
   onDeleteTransaction,
+  onUpdateTransaction,
   deletingTransactionId,
+  updatingTransactionId,
   isBackgroundRefreshing,
   onActiveTabChange,
 }: StartScreenProps) {
@@ -211,7 +224,12 @@ export function StartScreen({
     useState(false)
   const [amountSearch, setAmountSearch] = useState('')
   const [amountTolerance, setAmountTolerance] = useState('0')
+  const [editingTransaction, setEditingTransaction] =
+    useState<DebtTransaction | null>(null)
+  const startScreenRef = useRef<HTMLElement | null>(null)
   const personTabsRef = useRef<HTMLDivElement | null>(null)
+  const previousActiveBalanceAmountsRef = useRef<Map<string, number> | null>(null)
+  const clearBalanceHighlightTimeoutsRef = useRef<number[]>([])
 
   const activeTab = activePerson ? (personTabs[activePerson.id] ?? 'i_owe') : 'i_owe'
 
@@ -351,8 +369,78 @@ export function StartScreen({
     [balancesForActivePerson.oweMe],
   )
 
+  useEffect(() => {
+    if (!activePerson) {
+      previousActiveBalanceAmountsRef.current = null
+      return
+    }
+
+    const nextAmounts = new Map<string, number>()
+
+    balancesForActivePerson.iOwe.forEach((entry) => {
+      nextAmounts.set(`i_owe:${entry.personId}`, entry.amount)
+    })
+
+    balancesForActivePerson.oweMe.forEach((entry) => {
+      nextAmounts.set(`owe_me:${entry.personId}`, entry.amount)
+    })
+
+    const previousAmounts = previousActiveBalanceAmountsRef.current
+    if (!previousAmounts) {
+      previousActiveBalanceAmountsRef.current = nextAmounts
+      return
+    }
+
+    const changedKeys: string[] = []
+    nextAmounts.forEach((amount, key) => {
+      const previousAmount = previousAmounts.get(key)
+      if (previousAmount !== undefined && previousAmount !== amount) {
+        changedKeys.push(key)
+      }
+    })
+
+    if (changedKeys.length > 0) {
+      clearBalanceHighlightTimeoutsRef.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
+      clearBalanceHighlightTimeoutsRef.current = []
+
+      changedKeys.forEach((balanceKey) => {
+        const balanceItem = startScreenRef.current?.querySelector<HTMLElement>(
+          `[data-balance-key="${balanceKey}"]`,
+        )
+
+        if (!balanceItem) {
+          return
+        }
+
+        balanceItem.classList.remove('balance-item-updated')
+        void balanceItem.offsetWidth
+        balanceItem.classList.add('balance-item-updated')
+
+        const timeoutId = window.setTimeout(() => {
+          balanceItem.classList.remove('balance-item-updated')
+        }, 1000)
+
+        clearBalanceHighlightTimeoutsRef.current.push(timeoutId)
+      })
+    }
+
+    previousActiveBalanceAmountsRef.current = nextAmounts
+  }, [activePerson, balancesForActivePerson])
+
+  useEffect(
+    () => () => {
+      clearBalanceHighlightTimeoutsRef.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
+      clearBalanceHighlightTimeoutsRef.current = []
+    },
+    [],
+  )
+
   return (
-    <section className="card start-screen">
+    <section ref={startScreenRef} className="card start-screen">
       {!activePerson ? (
         <>
           <h2>Старт</h2>
@@ -403,13 +491,17 @@ export function StartScreen({
             ) : (
               <ul className="balance-list">
                 {balancesForActivePerson.iOwe.map((entry) => (
-                  <li key={entry.personId} className="balance-item">
+                  <li
+                    key={entry.personId}
+                    className="balance-item"
+                    data-balance-key={`i_owe:${entry.personId}`}
+                  >
                     <PersonInline
                       person={findPerson(entry.personId, people)}
                       fallbackName={entry.personName}
                     />
                     <strong className="transaction-amount">
-                      HK$ {entry.amount.toFixed(2)}
+                      HK$ {Math.round(entry.amount)}
                     </strong>
                   </li>
                 ))}
@@ -423,13 +515,17 @@ export function StartScreen({
             ) : (
               <ul className="balance-list">
                 {balancesForActivePerson.oweMe.map((entry) => (
-                  <li key={entry.personId} className="balance-item">
+                  <li
+                    key={entry.personId}
+                    className="balance-item"
+                    data-balance-key={`owe_me:${entry.personId}`}
+                  >
                     <PersonInline
                       person={findPerson(entry.personId, people)}
                       fallbackName={entry.personName}
                     />
                     <strong className="transaction-amount">
-                      HK$ {entry.amount.toFixed(2)}
+                      HK$ {Math.round(entry.amount)}
                     </strong>
                   </li>
                 ))}
@@ -494,8 +590,8 @@ export function StartScreen({
                     <input
                       id="person-history-amount"
                       type="number"
-                      inputMode="decimal"
-                      step="0.01"
+                      inputMode="numeric"
+                      step="1"
                       min="0"
                       value={amountSearch}
                       onChange={(event) => setAmountSearch(event.target.value)}
@@ -507,8 +603,8 @@ export function StartScreen({
                     <input
                       aria-label="Допуск суммы"
                       type="number"
-                      inputMode="decimal"
-                      step="0.01"
+                      inputMode="numeric"
+                      step="1"
                       min="0"
                       value={amountTolerance}
                       onChange={(event) => setAmountTolerance(event.target.value)}
@@ -557,23 +653,43 @@ export function StartScreen({
                         </div>
                         <div className="transaction-side">
                           <strong className="transaction-amount">
-                            HK$ {transaction.amountHkd.toFixed(2)}
+                            HK$ {Math.round(transaction.amountHkd)}
                           </strong>
                           <span className="history-date">{formatDate(transaction.createdAt)}</span>
-                          <button
-                            type="button"
-                            className="history-delete-button"
-                            onClick={() => {
-                              void onDeleteTransaction(transaction.id)
-                            }}
-                            aria-label="Удалить операцию"
-                            title="Удалить операцию"
-                            disabled={deletingTransactionId === transaction.id}
-                          >
-                            {deletingTransactionId === transaction.id
-                              ? 'Удаление...'
-                              : 'Удалить'}
-                          </button>
+                          <div className="history-item-buttons">
+                            <button
+                              type="button"
+                              className="history-edit-button icon-action-button"
+                              onClick={() => setEditingTransaction(transaction)}
+                              aria-label="Редактировать операцию"
+                              title="Редактировать операцию"
+                              disabled={
+                                deletingTransactionId === transaction.id ||
+                                updatingTransactionId === transaction.id
+                              }
+                            >
+                              {updatingTransactionId === transaction.id
+                                ? <span className="loader loader-inline" aria-hidden="true" />
+                                : <PencilIcon />}
+                            </button>
+                            <button
+                              type="button"
+                              className="history-delete-button icon-action-button"
+                              onClick={() => {
+                                void onDeleteTransaction(transaction.id)
+                              }}
+                              aria-label="Удалить операцию"
+                              title="Удалить операцию"
+                              disabled={
+                                deletingTransactionId === transaction.id ||
+                                updatingTransactionId === transaction.id
+                              }
+                            >
+                              {deletingTransactionId === transaction.id
+                                ? <span className="loader loader-inline" aria-hidden="true" />
+                                : <TrashIcon />}
+                            </button>
+                          </div>
                         </div>
                       </li>
                     )
@@ -585,6 +701,18 @@ export function StartScreen({
           ) : null}
         </>
       )}
+
+      {editingTransaction ? (
+        <EditTransactionModal
+          key={editingTransaction.id}
+          isOpen
+          people={people}
+          transaction={editingTransaction}
+          onClose={() => setEditingTransaction(null)}
+          onUpdate={onUpdateTransaction}
+          updatingTransactionId={updatingTransactionId}
+        />
+      ) : null}
     </section>
   )
 }

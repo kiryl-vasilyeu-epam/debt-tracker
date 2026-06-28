@@ -24,7 +24,7 @@ const applySettlement = (
     if (reverse.amountHkd > settlement.amountHkd) {
       map.set(reverseKey, {
         ...reverse,
-        amountHkd: Number((reverse.amountHkd - settlement.amountHkd).toFixed(2)),
+        amountHkd: reverse.amountHkd - settlement.amountHkd,
       })
       return
     }
@@ -41,7 +41,7 @@ const applySettlement = (
       debtorName: settlement.debtorName,
       creditorId: settlement.creditorId,
       creditorName: settlement.creditorName,
-      amountHkd: Number((settlement.amountHkd - reverse.amountHkd).toFixed(2)),
+      amountHkd: settlement.amountHkd - reverse.amountHkd,
     })
     return
   }
@@ -61,7 +61,7 @@ const applySettlement = (
 
   map.set(forwardKey, {
     ...currentForward,
-    amountHkd: Number((currentForward.amountHkd + settlement.amountHkd).toFixed(2)),
+    amountHkd: currentForward.amountHkd + settlement.amountHkd,
   })
 }
 

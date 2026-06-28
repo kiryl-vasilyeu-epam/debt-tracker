@@ -53,7 +53,7 @@ const toTransaction = (
   forPersonName:
     row.for_person_name ??
     (row.for_person_id ? (peopleById.get(row.for_person_id)?.name ?? 'Удален') : null),
-  amountHkd: Number(row.amount_hkd),
+  amountHkd: Math.round(Number(row.amount_hkd)),
   note: row.note,
   createdAt: row.created_at,
 })
@@ -67,7 +67,7 @@ const toBalance = (
   debtorName: row.debtor_name ?? peopleById.get(row.debtor_id)?.name ?? 'Удален',
   creditorId: row.creditor_id,
   creditorName: row.creditor_name ?? peopleById.get(row.creditor_id)?.name ?? 'Удален',
-  amountHkd: Number(row.amount_hkd),
+  amountHkd: Math.round(Number(row.amount_hkd)),
 })
 
 const assertSupabase = () => {
@@ -285,6 +285,29 @@ export const deleteTransactionRemote = async (transactionId: string) => {
   }
 }
 
+export const updateTransactionRemote = async (transaction: DebtTransaction) => {
+  const db = assertSupabase()
+
+  const { error } = await db
+    .from('transactions')
+    .update({
+      type: transaction.type,
+      from_person_id: transaction.fromPersonId,
+      from_person_name: transaction.fromPersonName,
+      to_person_id: transaction.toPersonId,
+      to_person_name: transaction.toPersonName,
+      for_person_id: transaction.forPersonId,
+      for_person_name: transaction.forPersonName,
+      amount_hkd: transaction.amountHkd,
+      note: transaction.note,
+    })
+    .eq('id', transaction.id)
+
+  if (error) {
+    throw error
+  }
+}
+
 export const saveBalancesRemote = async (
   balances: DebtBalance[],
   previousBalances: DebtBalance[],
@@ -297,7 +320,7 @@ export const saveBalancesRemote = async (
     debtor_name: balance.debtorName,
     creditor_id: balance.creditorId,
     creditor_name: balance.creditorName,
-    amount_hkd: Number(balance.amountHkd.toFixed(2)),
+    amount_hkd: Math.round(balance.amountHkd),
   }))
 
   if (rows.length > 0) {
