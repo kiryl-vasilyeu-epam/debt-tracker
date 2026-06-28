@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Person } from '../types/person'
 
 type PeopleTabsProps = {
@@ -13,6 +13,9 @@ export function PeopleTabs({
   onSelectPerson,
 }: PeopleTabsProps) {
   const tabsRef = useRef<HTMLDivElement | null>(null)
+  const [activatingPersonId, setActivatingPersonId] = useState<string | null>(
+    activePersonId,
+  )
 
   useEffect(() => {
     const tabsNode = tabsRef.current
@@ -28,6 +31,32 @@ export function PeopleTabs({
       inline: 'center',
       block: 'nearest',
     })
+  }, [activePersonId])
+
+  useEffect(() => {
+    if (!activePersonId) {
+      const resetTimeoutId = window.setTimeout(() => {
+        setActivatingPersonId(null)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(resetTimeoutId)
+      }
+    }
+
+    const startTimeoutId = window.setTimeout(() => {
+      setActivatingPersonId(activePersonId)
+    }, 0)
+    const timeoutId = window.setTimeout(() => {
+      setActivatingPersonId((currentId) =>
+        currentId === activePersonId ? null : currentId,
+      )
+    }, 220)
+
+    return () => {
+      window.clearTimeout(startTimeoutId)
+      window.clearTimeout(timeoutId)
+    }
   }, [activePersonId])
 
   return (
@@ -51,7 +80,7 @@ export function PeopleTabs({
             aria-selected={person.id === activePersonId}
             className={`person-tab ${
               person.id === activePersonId ? 'person-tab-active' : ''
-            }`}
+            } ${person.id === activatingPersonId ? 'person-tab-activating' : ''}`}
             onClick={() => onSelectPerson(person.id)}
           >
             <span

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { PencilIcon, TrashIcon } from './ActionIcons'
 import { EditTransactionModal } from './EditTransactionModal'
 import type { DebtBalance } from '../types/balance'
@@ -103,6 +104,95 @@ const toDateInputValue = (date: Date) => {
 }
 
 const getTodayDateInputValue = () => toDateInputValue(new Date())
+
+const hexToRgb = (hexColor: string): [number, number, number] | null => {
+  const normalized = hexColor.trim().replace('#', '')
+  const fullHex =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized
+
+  if (!/^[0-9a-fA-F]{6}$/.test(fullHex)) {
+    return null
+  }
+
+  const r = Number.parseInt(fullHex.slice(0, 2), 16)
+  const g = Number.parseInt(fullHex.slice(2, 4), 16)
+  const b = Number.parseInt(fullHex.slice(4, 6), 16)
+
+  return [r, g, b]
+}
+
+const rgbStringToRgb = (colorValue: string): [number, number, number] | null => {
+  const rgbMatch = colorValue.match(/rgba?\(([^)]+)\)/i)
+  if (!rgbMatch) {
+    return null
+  }
+
+  const parts = rgbMatch[1]
+    .split(/[\s,/]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+
+  if (parts.length !== 3) {
+    return null
+  }
+
+  const toChannel = (rawValue: string) => {
+    if (rawValue.endsWith('%')) {
+      const parsedPercent = Number(rawValue.slice(0, -1))
+      if (!Number.isFinite(parsedPercent)) {
+        return NaN
+      }
+
+      return Math.round((parsedPercent / 100) * 255)
+    }
+
+    return Math.round(Number(rawValue))
+  }
+
+  const r = toChannel(parts[0])
+  const g = toChannel(parts[1])
+  const b = toChannel(parts[2])
+
+  if (![r, g, b].every((channel) => Number.isFinite(channel))) {
+    return null
+  }
+
+  const clamp = (channel: number) => Math.max(0, Math.min(channel, 255))
+  return [clamp(r), clamp(g), clamp(b)]
+}
+
+const colorToRgb = (colorValue: string): [number, number, number] | null => {
+  const directHex = hexToRgb(colorValue)
+  if (directHex) {
+    return directHex
+  }
+
+  const directRgb = rgbStringToRgb(colorValue)
+  if (directRgb) {
+    return directRgb
+  }
+
+  if (typeof document === 'undefined') {
+    return null
+  }
+
+  const context = document.createElement('canvas').getContext('2d')
+  if (!context) {
+    return null
+  }
+
+  context.fillStyle = '#000'
+  context.fillStyle = colorValue
+  const normalized = context.fillStyle
+
+  return hexToRgb(normalized) ?? rgbStringToRgb(normalized)
+}
 
 const isWithinSelectedDateRange = (
   isoDate: string,
@@ -226,6 +316,7 @@ export function StartScreen({
   const [amountTolerance, setAmountTolerance] = useState('0')
   const [editingTransaction, setEditingTransaction] =
     useState<DebtTransaction | null>(null)
+  const [activatingTab, setActivatingTab] = useState<PersonScreenTab | null>(null)
   const startScreenRef = useRef<HTMLElement | null>(null)
   const personTabsRef = useRef<HTMLDivElement | null>(null)
   const previousActiveBalanceAmountsRef = useRef<Map<string, number> | null>(null)
@@ -277,6 +368,20 @@ export function StartScreen({
       inline: 'center',
       block: 'nearest',
     })
+  }, [activeTab])
+
+  useEffect(() => {
+    const startTimeoutId = window.setTimeout(() => {
+      setActivatingTab(activeTab)
+    }, 0)
+    const timeoutId = window.setTimeout(() => {
+      setActivatingTab((currentTab) => (currentTab === activeTab ? null : currentTab))
+    }, 220)
+
+    return () => {
+      window.clearTimeout(startTimeoutId)
+      window.clearTimeout(timeoutId)
+    }
   }, [activeTab])
 
   const sortedTransactions = useMemo(
@@ -439,8 +544,17 @@ export function StartScreen({
     [],
   )
 
+  const activePersonRgb = activePerson ? colorToRgb(activePerson.color) : null
+  const startScreenStyle = activePersonRgb
+    ? ({ '--active-person-rgb': activePersonRgb.join(', ') } as CSSProperties)
+    : undefined
+
   return (
-    <section ref={startScreenRef} className="card start-screen">
+    <section
+      ref={startScreenRef}
+      className={`card start-screen ${activePerson ? 'start-screen-person-active' : ''}`}
+      style={startScreenStyle}
+    >
       {!activePerson ? (
         <>
           <h2>Старт</h2>
@@ -473,7 +587,7 @@ export function StartScreen({
                 aria-selected={activeTab === tabKey}
                 className={`person-screen-tab ${
                   activeTab === tabKey ? 'person-screen-tab-active' : ''
-                }`}
+                } ${activatingTab === tabKey ? 'person-screen-tab-activating' : ''}`}
                 onClick={() => handleTabSelect(tabKey)}
               >
                 {personScreenTabs[tabKey]}
@@ -481,59 +595,62 @@ export function StartScreen({
             ))}
           </div>
 
-          {activeTab !== 'transactions' && (
-            <p>Итого: {formatAmount(activeTab === 'owe_me' ? oweMeTotalAmount : iOweTotalAmount)}</p>
-          )}
+          <div key={`${activePerson.id}-${activeTab}`} className="person-tab-content">
+            {activeTab !== 'transactions' && (
+              <p>Итого: {formatAmount(activeTab === 'owe_me' ? oweMeTotalAmount : iOweTotalAmount)}</p>
+            )}
 
-          {activeTab === 'i_owe' ? (
-            balancesForActivePerson.iOwe.length === 0 ? (
-              <p>Сейчас вы никому не должны.</p>
-            ) : (
-              <ul className="balance-list">
-                {balancesForActivePerson.iOwe.map((entry) => (
-                  <li
-                    key={entry.personId}
-                    className="balance-item"
-                    data-balance-key={`i_owe:${entry.personId}`}
-                  >
-                    <PersonInline
-                      person={findPerson(entry.personId, people)}
-                      fallbackName={entry.personName}
-                    />
-                    <strong className="transaction-amount">
-                      HK$ {Math.round(entry.amount)}
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : null}
+            {activeTab === 'i_owe' ? (
+              balancesForActivePerson.iOwe.length === 0 ? (
+                <p>Сейчас вы никому не должны.</p>
+              ) : (
+                <ul className="balance-list">
+                  {balancesForActivePerson.iOwe.map((entry, index) => (
+                    <li
+                      key={entry.personId}
+                      className="balance-item"
+                      data-balance-key={`i_owe:${entry.personId}`}
+                      style={{ '--enter-index': index } as CSSProperties}
+                    >
+                      <PersonInline
+                        person={findPerson(entry.personId, people)}
+                        fallbackName={entry.personName}
+                      />
+                      <strong className="transaction-amount">
+                        HK$ {Math.round(entry.amount)}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : null}
 
-          {activeTab === 'owe_me' ? (
-            balancesForActivePerson.oweMe.length === 0 ? (
-              <p>Сейчас вам никто не должен.</p>
-            ) : (
-              <ul className="balance-list">
-                {balancesForActivePerson.oweMe.map((entry) => (
-                  <li
-                    key={entry.personId}
-                    className="balance-item"
-                    data-balance-key={`owe_me:${entry.personId}`}
-                  >
-                    <PersonInline
-                      person={findPerson(entry.personId, people)}
-                      fallbackName={entry.personName}
-                    />
-                    <strong className="transaction-amount">
-                      HK$ {Math.round(entry.amount)}
-                    </strong>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : null}
+            {activeTab === 'owe_me' ? (
+              balancesForActivePerson.oweMe.length === 0 ? (
+                <p>Сейчас вам никто не должен.</p>
+              ) : (
+                <ul className="balance-list">
+                  {balancesForActivePerson.oweMe.map((entry, index) => (
+                    <li
+                      key={entry.personId}
+                      className="balance-item"
+                      data-balance-key={`owe_me:${entry.personId}`}
+                      style={{ '--enter-index': index } as CSSProperties}
+                    >
+                      <PersonInline
+                        person={findPerson(entry.personId, people)}
+                        fallbackName={entry.personName}
+                      />
+                      <strong className="transaction-amount">
+                        HK$ {Math.round(entry.amount)}
+                      </strong>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : null}
 
-          {activeTab === 'transactions' ? (
+            {activeTab === 'transactions' ? (
             isTransactionsLoading ? (
               <div className="transactions-loading-state" aria-live="polite">
                 <div className="loader" aria-hidden="true" />
@@ -616,7 +733,7 @@ export function StartScreen({
                   <p>По выбранному периоду и сумме операций не найдено.</p>
                 ) : (
                   <ul className="transactions-list">
-                    {filteredActiveTransactions.map((transaction) => {
+                    {filteredActiveTransactions.map((transaction, index) => {
                       const fromPerson = findPerson(transaction.fromPersonId, people)
                       const toPerson = findPerson(transaction.toPersonId, people)
                       const forPerson = transaction.forPersonId
@@ -624,95 +741,97 @@ export function StartScreen({
                         : null
 
                       return (
-                      <li key={transaction.id} className="transaction-item">
-                        <div className="transaction-meta">
-                          <strong>{transactionTypeLabels[transaction.type]}</strong>
-                          <span className="transaction-people-line">
-                            <PersonInline
-                              person={fromPerson}
-                              fallbackName={transaction.fromPersonName}
-                            />
-                            <span className="history-arrow">{betweenPeopleLabel[transaction.type]}</span>
-                            <PersonInline
-                              person={toPerson}
-                              fallbackName={transaction.toPersonName}
-                            />
-                            {transaction.forPersonId ? (
-                              <>
-                                <span className="history-for-text">за</span>
-                                <PersonInline
-                                  person={forPerson}
-                                  fallbackName={transaction.forPersonName ?? 'Удален'}
-                                />
-                              </>
+                        <li
+                          key={transaction.id}
+                          className="transaction-item"
+                          style={{ '--enter-index': index } as CSSProperties}
+                        >
+                          <div className="transaction-meta">
+                            <strong>{transactionTypeLabels[transaction.type]}</strong>
+                            <span className="transaction-people-line">
+                              <PersonInline
+                                person={fromPerson}
+                                fallbackName={transaction.fromPersonName}
+                              />
+                              <span className="history-arrow">{betweenPeopleLabel[transaction.type]}</span>
+                              <PersonInline
+                                person={toPerson}
+                                fallbackName={transaction.toPersonName}
+                              />
+                              {transaction.forPersonId ? (
+                                <>
+                                  <span className="history-for-text">за</span>
+                                  <PersonInline
+                                    person={forPerson}
+                                    fallbackName={transaction.forPersonName ?? 'Удален'}
+                                  />
+                                </>
+                              ) : null}
+                            </span>
+                            {transaction.note ? (
+                              <p className="transaction-note">{transaction.note}</p>
                             ) : null}
-                          </span>
-                          {transaction.note ? (
-                            <p className="transaction-note">{transaction.note}</p>
-                          ) : null}
-                        </div>
-                        <div className="transaction-side">
-                          <strong className="transaction-amount">
-                            HK$ {Math.round(transaction.amountHkd)}
-                          </strong>
-                          <span className="history-date">{formatDate(transaction.createdAt)}</span>
-                          <div className="history-item-buttons">
-                            <button
-                              type="button"
-                              className="history-edit-button icon-action-button"
-                              onClick={() => setEditingTransaction(transaction)}
-                              aria-label="Редактировать операцию"
-                              title="Редактировать операцию"
-                              disabled={
-                                deletingTransactionId === transaction.id ||
-                                updatingTransactionId === transaction.id
-                              }
-                            >
-                              {updatingTransactionId === transaction.id
-                                ? <span className="loader loader-inline" aria-hidden="true" />
-                                : <PencilIcon />}
-                            </button>
-                            <button
-                              type="button"
-                              className="history-delete-button icon-action-button"
-                              onClick={() => {
-                                void onDeleteTransaction(transaction.id)
-                              }}
-                              aria-label="Удалить операцию"
-                              title="Удалить операцию"
-                              disabled={
-                                deletingTransactionId === transaction.id ||
-                                updatingTransactionId === transaction.id
-                              }
-                            >
-                              {deletingTransactionId === transaction.id
-                                ? <span className="loader loader-inline" aria-hidden="true" />
-                                : <TrashIcon />}
-                            </button>
                           </div>
-                        </div>
-                      </li>
-                    )
-                  })}
+                          <div className="transaction-side">
+                            <strong className="transaction-amount">
+                              HK$ {Math.round(transaction.amountHkd)}
+                            </strong>
+                            <span className="history-date">{formatDate(transaction.createdAt)}</span>
+                            <div className="history-item-buttons">
+                              <button
+                                type="button"
+                                className="history-edit-button icon-action-button"
+                                onClick={() => setEditingTransaction(transaction)}
+                                aria-label="Редактировать операцию"
+                                title="Редактировать операцию"
+                                disabled={
+                                  deletingTransactionId === transaction.id ||
+                                  updatingTransactionId === transaction.id
+                                }
+                              >
+                                {updatingTransactionId === transaction.id
+                                  ? <span className="loader loader-inline" aria-hidden="true" />
+                                  : <PencilIcon />}
+                              </button>
+                              <button
+                                type="button"
+                                className="history-delete-button icon-action-button"
+                                onClick={() => {
+                                  void onDeleteTransaction(transaction.id)
+                                }}
+                                aria-label="Удалить операцию"
+                                title="Удалить операцию"
+                                disabled={
+                                  deletingTransactionId === transaction.id ||
+                                  updatingTransactionId === transaction.id
+                                }
+                              >
+                                {deletingTransactionId === transaction.id
+                                  ? <span className="loader loader-inline" aria-hidden="true" />
+                                  : <TrashIcon />}
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
               </>
             )
-          ) : null}
+            ) : null}
+          </div>
         </>
       )}
 
-      {editingTransaction ? (
-        <EditTransactionModal
-          key={editingTransaction.id}
-          isOpen
-          people={people}
-          transaction={editingTransaction}
-          onClose={() => setEditingTransaction(null)}
-          onUpdate={onUpdateTransaction}
-          updatingTransactionId={updatingTransactionId}
-        />
-      ) : null}
+      <EditTransactionModal
+        isOpen={Boolean(editingTransaction)}
+        people={people}
+        transaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+        onUpdate={onUpdateTransaction}
+        updatingTransactionId={updatingTransactionId}
+      />
     </section>
   )
 }

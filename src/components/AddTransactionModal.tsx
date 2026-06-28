@@ -44,6 +44,8 @@ export function AddTransactionModal({
   onCreate,
   isCreating,
 }: AddTransactionModalProps) {
+  const [isRendered, setIsRendered] = useState(isOpen)
+  const [isClosing, setIsClosing] = useState(false)
   const initialWhoId =
     defaultWhoId && people.some((person) => person.id === defaultWhoId)
       ? defaultWhoId
@@ -78,6 +80,36 @@ export function AddTransactionModal({
   const toWhomLabel = type === 'took' ? 'У кого' : 'Кому'
 
   useModalBehavior(isOpen, onClose)
+
+  useEffect(() => {
+    if (isOpen) {
+      const openTimeoutId = window.setTimeout(() => {
+        setIsRendered(true)
+        setIsClosing(false)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(openTimeoutId)
+      }
+    }
+
+    if (!isRendered) {
+      return
+    }
+
+    const closeStartTimeoutId = window.setTimeout(() => {
+      setIsClosing(true)
+    }, 0)
+    const timeoutId = window.setTimeout(() => {
+      setIsRendered(false)
+      setIsClosing(false)
+    }, 180)
+
+    return () => {
+      window.clearTimeout(closeStartTimeoutId)
+      window.clearTimeout(timeoutId)
+    }
+  }, [isOpen, isRendered])
 
   useEffect(() => {
     const typeGroupNode = typeGroupRef.current
@@ -194,21 +226,23 @@ export function AddTransactionModal({
     }
   }
 
-  if (!isOpen) {
+  if (!isRendered) {
     return null
   }
 
+  const modalStateClass = isOpen && !isClosing ? 'modal-state-open' : 'modal-state-closing'
+
   return (
     <div
-      className="modal-overlay"
+      className={`modal-overlay ${modalStateClass}`}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (isOpen && event.target === event.currentTarget) {
           onClose()
         }
       }}
     >
       <section
-        className={`modal add-transaction-modal ${transactionTypeToneClass[type]}`}
+        className={`modal add-transaction-modal ${transactionTypeToneClass[type]} ${modalStateClass}`}
         role="dialog"
         aria-modal="true"
         aria-label="Новая операция"

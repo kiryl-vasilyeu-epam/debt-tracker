@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { PencilIcon, TrashIcon } from './ActionIcons'
 import { EditTransactionModal } from './EditTransactionModal'
 import { useModalBehavior } from '../hooks/useModalBehavior'
@@ -168,6 +169,8 @@ export function TransactionHistoryModal({
   updatingTransactionId,
   isTransactionsLoading,
 }: TransactionHistoryModalProps) {
+  const [isRendered, setIsRendered] = useState(isOpen)
+  const [isClosing, setIsClosing] = useState(false)
   const [selectedDateFrom, setSelectedDateFrom] = useState<string>(
     getTodayDateInputValue,
   )
@@ -180,9 +183,41 @@ export function TransactionHistoryModal({
 
   useModalBehavior(isOpen, onClose)
 
-  if (!isOpen) {
+  useEffect(() => {
+    if (isOpen) {
+      const openTimeoutId = window.setTimeout(() => {
+        setIsRendered(true)
+        setIsClosing(false)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(openTimeoutId)
+      }
+    }
+
+    if (!isRendered) {
+      return
+    }
+
+    const closeStartTimeoutId = window.setTimeout(() => {
+      setIsClosing(true)
+    }, 0)
+    const timeoutId = window.setTimeout(() => {
+      setIsRendered(false)
+      setIsClosing(false)
+    }, 180)
+
+    return () => {
+      window.clearTimeout(closeStartTimeoutId)
+      window.clearTimeout(timeoutId)
+    }
+  }, [isOpen, isRendered])
+
+  if (!isRendered) {
     return null
   }
+
+  const modalStateClass = isOpen && !isClosing ? 'modal-state-open' : 'modal-state-closing'
 
   const sortedTransactions = [...transactions].sort(
     (a, b) =>
@@ -207,14 +242,19 @@ export function TransactionHistoryModal({
   return (
     <>
       <div
-        className="modal-overlay"
+        className={`modal-overlay ${modalStateClass}`}
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) {
+          if (isOpen && event.target === event.currentTarget) {
             onClose()
           }
         }}
       >
-        <section className="modal history-modal" role="dialog" aria-modal="true" aria-label="История операций">
+        <section
+          className={`modal history-modal ${modalStateClass}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="История операций"
+        >
           <header className="modal-header">
             <h2>История операций</h2>
             <button type="button" className="modal-close-button" onClick={onClose}>
@@ -299,7 +339,7 @@ export function TransactionHistoryModal({
             <p>По выбранному периоду и сумме операций не найдено.</p>
           ) : (
             <ul className="history-list">
-              {filteredTransactions.map((transaction) => {
+              {filteredTransactions.map((transaction, index) => {
                 const from = findPerson(transaction.fromPersonId, people)
                 const to = findPerson(transaction.toPersonId, people)
                 const forPerson = transaction.forPersonId
@@ -307,7 +347,11 @@ export function TransactionHistoryModal({
                   : null
 
                 return (
-                  <li key={transaction.id} className="history-item">
+                  <li
+                    key={transaction.id}
+                    className="history-item"
+                    style={{ '--enter-index': index } as CSSProperties}
+                  >
                     <strong>{transactionTypeLabels[transaction.type]}</strong>
                     <p className="history-people-line">
                       <PersonInline person={from} fallbackName={transaction.fromPersonName} />
@@ -370,17 +414,14 @@ export function TransactionHistoryModal({
         </section>
       </div>
 
-      {editingTransaction ? (
-        <EditTransactionModal
-          key={editingTransaction.id}
-          isOpen
-          people={people}
-          transaction={editingTransaction}
-          onClose={() => setEditingTransaction(null)}
-          onUpdate={onUpdateTransaction}
-          updatingTransactionId={updatingTransactionId}
-        />
-      ) : null}
+      <EditTransactionModal
+        isOpen={Boolean(editingTransaction)}
+        people={people}
+        transaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+        onUpdate={onUpdateTransaction}
+        updatingTransactionId={updatingTransactionId}
+      />
     </>
   )
 }

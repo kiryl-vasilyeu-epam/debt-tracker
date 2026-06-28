@@ -128,6 +128,19 @@ button:disabled {
   place-items: center;
   background: var(--secondary-bg);
   color: var(--secondary-text);
+  transition:
+    transform 0.16s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.settings-icon-button-active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.settings-icon-button-active .settings-icon {
+  animation: settings-icon-pop 180ms ease;
 }
 
 .settings-icon {
@@ -190,6 +203,12 @@ button:disabled {
   gap: 0.5rem;
 }
 
+.button-loader-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .danger-button {
   background: var(--danger-bg);
   color: var(--danger-text);
@@ -225,6 +244,50 @@ button:disabled {
 @keyframes loader-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes settings-icon-pop {
+  0% {
+    transform: scale(0.94) rotate(-8deg);
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes tab-activate {
+  0% {
+    transform: translateY(2px) scale(0.98);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes screen-content-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes list-card-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -271,6 +334,11 @@ button:disabled {
   padding: 0.52rem 0.78rem;
   min-height: 40px;
   scroll-snap-align: start;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .person-tab:hover,
@@ -281,6 +349,10 @@ button:disabled {
 .person-tab-active {
   border-color: var(--accent-line);
   background: var(--accent-soft);
+}
+
+.person-tab-activating {
+  animation: tab-activate 220ms ease;
 }
 
 .person-color-dot {
@@ -300,6 +372,21 @@ button:disabled {
   display: grid;
   align-content: start;
   gap: 0.5rem;
+}
+
+.start-screen-person-active {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--active-person-rgb, 20, 95, 180), 0.1) 0%,
+      rgba(var(--active-person-rgb, 20, 95, 180), 0.04) 26%,
+      var(--surface) 62%);
+  box-shadow:
+    0 10px 30px rgba(20, 24, 38, 0.08),
+    0 4px 16px rgba(var(--active-person-rgb, 20, 95, 180), 0.09),
+    inset 0 0 0 1px rgba(var(--active-person-rgb, 20, 95, 180), 0.14);
+  transition:
+    box-shadow 260ms ease,
+    background 260ms ease;
 }
 
 .start-screen-title-row {
@@ -383,12 +470,25 @@ button:disabled {
   border: 1px solid var(--line);
   background: var(--surface-soft-2);
   color: var(--text-strong);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .person-screen-tab-active {
   border-color: var(--accent-line);
   background: var(--accent-soft);
   color: var(--text-strong);
+}
+
+.person-screen-tab-activating {
+  animation: tab-activate 220ms ease;
+}
+
+.person-tab-content {
+  animation: screen-content-enter 220ms ease;
 }
 
 .balance-list {
@@ -408,6 +508,8 @@ button:disabled {
   border-radius: 0.7rem;
   padding: 0.6rem 0.72rem;
   background: var(--surface-soft);
+  animation: list-card-enter 260ms ease both;
+  animation-delay: calc(var(--enter-index, 0) * 26ms);
 }
 
 .balance-item-updated {
@@ -445,6 +547,8 @@ button:disabled {
   border-radius: 0.7rem;
   padding: 0.6rem 0.72rem;
   background: var(--surface-soft);
+  animation: list-card-enter 260ms ease both;
+  animation-delay: calc(var(--enter-index, 0) * 18ms);
 }
 
 .transaction-meta {

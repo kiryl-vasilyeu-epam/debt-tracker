@@ -93,6 +93,9 @@ export const useDebtTrackerData = ({
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isAddingPerson, setIsAddingPerson] = useState(false)
   const [removingPersonId, setRemovingPersonId] = useState<string | null>(null)
+  const [updatingPersonColorId, setUpdatingPersonColorId] = useState<string | null>(
+    null,
+  )
   const [isCreatingTransaction, setIsCreatingTransaction] = useState(false)
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(
     null,
@@ -243,6 +246,37 @@ export const useDebtTrackerData = ({
       }
     },
     [activePersonId, people],
+  )
+
+  const updatePersonColor = useCallback(
+    async (personId: string, color: string): Promise<void> => {
+      const targetPerson = people.find((person) => person.id === personId)
+      if (!targetPerson || targetPerson.color === color) {
+        return
+      }
+
+      setUpdatingPersonColorId(personId)
+      setRequestError(null)
+
+      const nextPerson: Person = {
+        ...targetPerson,
+        color,
+      }
+
+      try {
+        await savePersonRemote(nextPerson)
+        setPeople((previousPeople) =>
+          previousPeople.map((person) =>
+            person.id === personId ? nextPerson : person,
+          ),
+        )
+      } catch {
+        setRequestError('Не удалось обновить цвет человека.')
+      } finally {
+        setUpdatingPersonColorId(null)
+      }
+    },
+    [people],
   )
 
   const createTransaction = useCallback(
@@ -490,6 +524,7 @@ export const useDebtTrackerData = ({
     isInitialLoading,
     isAddingPerson,
     removingPersonId,
+    updatingPersonColorId,
     isCreatingTransaction,
     deletingTransactionId,
     updatingTransactionId,
@@ -499,6 +534,7 @@ export const useDebtTrackerData = ({
     ensureTransactionsLoaded,
     addPerson,
     removePerson,
+    updatePersonColor,
     createTransaction,
     deleteTransaction,
     updateTransaction,

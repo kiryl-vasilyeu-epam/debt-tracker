@@ -56,6 +56,7 @@ function App() {
     isInitialLoading,
     isAddingPerson,
     removingPersonId,
+    updatingPersonColorId,
     isCreatingTransaction,
     deletingTransactionId,
     updatingTransactionId,
@@ -65,6 +66,7 @@ function App() {
     ensureTransactionsLoaded,
     addPerson,
     removePerson,
+    updatePersonColor,
     createTransaction,
     deleteTransaction,
     updateTransaction,
@@ -189,7 +191,7 @@ function App() {
 
           <button
             type="button"
-            className="settings-icon-button"
+            className={`settings-icon-button ${isHistoryOpen ? 'settings-icon-button-active' : ''}`}
             aria-label={isHistoryOpen ? 'Закрыть общую историю' : 'Открыть общую историю'}
             title={isHistoryOpen ? 'Закрыть историю' : 'Общая история'}
             onClick={() => {
@@ -214,7 +216,7 @@ function App() {
 
           <button
             type="button"
-            className="settings-icon-button"
+            className={`settings-icon-button ${isSettingsOpen ? 'settings-icon-button-active' : ''}`}
             aria-label={isSettingsOpen ? 'Закрыть настройки людей' : 'Открыть настройки людей'}
             title={isSettingsOpen ? 'Закрыть настройки' : 'Настройки людей'}
             onClick={() => {
@@ -299,7 +301,10 @@ function App() {
                 title="Подтвердить удаление"
               >
                 {isDeleteConfirmationPending ? (
-                  <span className="loader loader-inline" aria-hidden="true" />
+                  <span className="button-loader-wrap">
+                    <span className="loader loader-inline" aria-hidden="true" />
+                    Удаление...
+                  </span>
                 ) : (
                   'Удалить'
                 )}
@@ -321,42 +326,38 @@ function App() {
         </button>
       ) : null}
 
-      {isSettingsOpen ? (
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          people={people}
-          onClose={() => setIsSettingsOpen(false)}
-          onAddPerson={addPerson}
-          onRequestRemovePerson={handleRequestRemovePerson}
-          isAddingPerson={isAddingPerson}
-          removingPersonId={removingPersonId}
-        />
-      ) : null}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        people={people}
+        onClose={() => setIsSettingsOpen(false)}
+        onAddPerson={addPerson}
+        onRequestRemovePerson={handleRequestRemovePerson}
+        isAddingPerson={isAddingPerson}
+        removingPersonId={removingPersonId}
+        updatingPersonColorId={updatingPersonColorId}
+        onUpdatePersonColor={updatePersonColor}
+      />
 
-      {isHistoryOpen ? (
-        <TransactionHistoryModal
-          isOpen={isHistoryOpen}
-          people={people}
-          transactions={transactions}
-          onDeleteTransaction={handleDeleteTransaction}
-          onUpdateTransaction={handleUpdateTransaction}
-          onClose={() => setIsHistoryOpen(false)}
-          deletingTransactionId={deletingTransactionId}
-          updatingTransactionId={updatingTransactionId}
-          isTransactionsLoading={isTransactionsLoading}
-        />
-      ) : null}
+      <TransactionHistoryModal
+        isOpen={isHistoryOpen}
+        people={people}
+        transactions={transactions}
+        onDeleteTransaction={handleDeleteTransaction}
+        onUpdateTransaction={handleUpdateTransaction}
+        onClose={() => setIsHistoryOpen(false)}
+        deletingTransactionId={deletingTransactionId}
+        updatingTransactionId={updatingTransactionId}
+        isTransactionsLoading={isTransactionsLoading}
+      />
 
-      {isAddTransactionOpen ? (
-        <AddTransactionModal
-          isOpen={isAddTransactionOpen}
-          people={people}
-          defaultWhoId={activePersonId}
-          onClose={() => setIsAddTransactionOpen(false)}
-          onCreate={createTransaction}
-          isCreating={isCreatingTransaction}
-        />
-      ) : null}
+      <AddTransactionModal
+        isOpen={isAddTransactionOpen}
+        people={people}
+        defaultWhoId={activePersonId}
+        onClose={() => setIsAddTransactionOpen(false)}
+        onCreate={createTransaction}
+        isCreating={isCreatingTransaction}
+      />
     </main>
   )
 }

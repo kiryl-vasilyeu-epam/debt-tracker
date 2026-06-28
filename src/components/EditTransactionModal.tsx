@@ -12,7 +12,7 @@ import './AddTransactionModal.css'
 type EditTransactionModalProps = {
   isOpen: boolean
   people: Person[]
-  transaction: DebtTransaction
+  transaction: DebtTransaction | null
   onClose: () => void
   onUpdate: (
     transactionId: string,
@@ -51,16 +51,68 @@ export function EditTransactionModal({
   onUpdate,
   updatingTransactionId,
 }: EditTransactionModalProps) {
-  const [type, setType] = useState<TransactionType>(transaction.type)
-  const [whoId, setWhoId] = useState<string>(transaction.fromPersonId)
-  const [toWhomId, setToWhomId] = useState<string>(transaction.toPersonId)
-  const [forWhomId, setForWhomId] = useState<string>(transaction.forPersonId ?? '')
-  const [amount, setAmount] = useState(String(Math.round(transaction.amountHkd)))
-  const [note, setNote] = useState(transaction.note ?? '')
+  const [isRendered, setIsRendered] = useState(isOpen)
+  const [isClosing, setIsClosing] = useState(false)
+  const [type, setType] = useState<TransactionType>(transaction?.type ?? 'took')
+  const [whoId, setWhoId] = useState<string>(transaction?.fromPersonId ?? '')
+  const [toWhomId, setToWhomId] = useState<string>(transaction?.toPersonId ?? '')
+  const [forWhomId, setForWhomId] = useState<string>(transaction?.forPersonId ?? '')
+  const [amount, setAmount] = useState(String(Math.round(transaction?.amountHkd ?? 0)))
+  const [note, setNote] = useState(transaction?.note ?? '')
   const [error, setError] = useState<string | null>(null)
   const typeGroupRef = useRef<HTMLDivElement | null>(null)
 
   useModalBehavior(isOpen, onClose)
+
+  useEffect(() => {
+    if (isOpen) {
+      const openTimeoutId = window.setTimeout(() => {
+        setIsRendered(true)
+        setIsClosing(false)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(openTimeoutId)
+      }
+    }
+
+    if (!isRendered) {
+      return
+    }
+
+    const closeStartTimeoutId = window.setTimeout(() => {
+      setIsClosing(true)
+    }, 0)
+    const timeoutId = window.setTimeout(() => {
+      setIsRendered(false)
+      setIsClosing(false)
+    }, 180)
+
+    return () => {
+      window.clearTimeout(closeStartTimeoutId)
+      window.clearTimeout(timeoutId)
+    }
+  }, [isOpen, isRendered])
+
+  useEffect(() => {
+    if (!transaction || !isOpen) {
+      return
+    }
+
+    const syncTimeoutId = window.setTimeout(() => {
+      setType(transaction.type)
+      setWhoId(transaction.fromPersonId)
+      setToWhomId(transaction.toPersonId)
+      setForWhomId(transaction.forPersonId ?? '')
+      setAmount(String(Math.round(transaction.amountHkd)))
+      setNote(transaction.note ?? '')
+      setError(null)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(syncTimeoutId)
+    }
+  }, [isOpen, transaction])
 
   useEffect(() => {
     const typeGroupNode = typeGroupRef.current
@@ -106,7 +158,8 @@ export function EditTransactionModal({
   const selectedTo = getPersonById(toWhomId, people)
   const selectedFor = getPersonById(forWhomId, people)
   const toWhomLabel = type === 'took' ? 'У кого' : 'Кому'
-  const isUpdatingCurrentTransaction = updatingTransactionId === transaction.id
+  const isUpdatingCurrentTransaction =
+    transaction ? updatingTransactionId === transaction.id : false
 
   const handleWhoChange = (nextWhoId: string) => {
     setWhoId(nextWhoId)
@@ -163,6 +216,10 @@ export function EditTransactionModal({
     const resolvedForName =
       type === 'gave_for' ? formatPersonName(forWhomId, people) : null
 
+    if (!transaction) {
+      return
+    }
+
     const updateError = await onUpdate(transaction.id, {
       type,
       fromPersonId: whoId,
@@ -184,21 +241,23 @@ export function EditTransactionModal({
     onClose()
   }
 
-  if (!isOpen) {
+  if (!isRendered || !transaction) {
     return null
   }
 
+  const modalStateClass = isOpen && !isClosing ? 'modal-state-open' : 'modal-state-closing'
+
   return (
     <div
-      className="modal-overlay"
+      className={`modal-overlay ${modalStateClass}`}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (isOpen && event.target === event.currentTarget) {
           onClose()
         }
       }}
     >
       <section
-        className={`modal add-transaction-modal ${transactionTypeToneClass[type]}`}
+        className={`modal add-transaction-modal ${transactionTypeToneClass[type]} ${modalStateClass}`}
         role="dialog"
         aria-modal="true"
         aria-label="Редактирование операции"
