@@ -637,10 +637,22 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+
+  html,
+  body,
+  #root {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
   .app {
     width: calc(100vw - 0.8rem);
+    height: 100dvh;
+    max-height: 100dvh;
     padding-top: 0.8rem;
-    overflow-x: hidden;
+    padding-bottom: 0.8rem;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
   }
 
   .card {
@@ -653,7 +665,14 @@ button:disabled {
   }
 
   .start-screen {
-    min-height: 32vh;
+    min-height: 0;
+    height: 100%;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .person-tab-content {
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .transaction-item {
