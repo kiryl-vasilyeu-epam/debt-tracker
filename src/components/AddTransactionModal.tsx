@@ -64,6 +64,10 @@ export function AddTransactionModal({
   const [error, setError] = useState<string | null>(null)
   const typeGroupRef = useRef<HTMLDivElement | null>(null)
 
+  useEffect({
+    setWhoId(initialWhoId)
+  }, [initialWhoId])
+
   const availableToPeople = useMemo(
     () => people.filter((person) => person.id !== whoId),
     [people, whoId],
