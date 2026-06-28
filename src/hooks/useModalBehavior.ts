@@ -12,12 +12,31 @@ export const useModalBehavior = (isOpen: boolean, onClose: () => void) => {
       }
     }
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const bodyStyle = document.body.style
+    const previousOverflow = bodyStyle.overflow
+    const previousPosition = bodyStyle.position
+    const previousTop = bodyStyle.top
+    const previousLeft = bodyStyle.left
+    const previousRight = bodyStyle.right
+    const previousWidth = bodyStyle.width
+    const scrollY = window.scrollY
+
+    bodyStyle.overflow = 'hidden'
+    bodyStyle.position = 'fixed'
+    bodyStyle.top = `-${scrollY}px`
+    bodyStyle.left = '0'
+    bodyStyle.right = '0'
+    bodyStyle.width = '100%'
     window.addEventListener('keydown', onKeyDown)
 
     return () => {
-      document.body.style.overflow = previousOverflow
+      bodyStyle.overflow = previousOverflow
+      bodyStyle.position = previousPosition
+      bodyStyle.top = previousTop
+      bodyStyle.left = previousLeft
+      bodyStyle.right = previousRight
+      bodyStyle.width = previousWidth
+      window.scrollTo(0, scrollY)
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [isOpen, onClose])
