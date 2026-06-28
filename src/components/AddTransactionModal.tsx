@@ -64,7 +64,7 @@ export function AddTransactionModal({
   const [error, setError] = useState<string | null>(null)
   const typeGroupRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect({
+  useEffect(() => {
     setWhoId(initialWhoId)
   }, [initialWhoId])
 
