@@ -52,17 +52,45 @@ const toDateInputValue = (date: Date) => {
 
 const getTodayDateInputValue = () => toDateInputValue(new Date())
 
-const isSameSelectedDay = (isoDate: string, selectedDate: string) => {
-  if (!selectedDate) {
-    return true
-  }
-
+const isWithinSelectedDateRange = (
+  isoDate: string,
+  startDate: string,
+  endDate: string,
+  isPeriodEnabled: boolean,
+) => {
   const parsed = new Date(isoDate)
   if (Number.isNaN(parsed.getTime())) {
     return false
   }
 
-  return toDateInputValue(parsed) === selectedDate
+  const dateValue = toDateInputValue(parsed)
+
+  if (!isPeriodEnabled) {
+    if (!startDate) {
+      return true
+    }
+
+    return dateValue === startDate
+  }
+
+  if (!startDate && !endDate) {
+    return true
+  }
+
+  const normalizedStartDate =
+    startDate && endDate && startDate > endDate ? endDate : startDate
+  const normalizedEndDate =
+    startDate && endDate && startDate > endDate ? startDate : endDate
+
+  if (normalizedStartDate && dateValue < normalizedStartDate) {
+    return false
+  }
+
+  if (normalizedEndDate && dateValue > normalizedEndDate) {
+    return false
+  }
+
+  return true
 }
 
 const isAmountWithinTolerance = (
@@ -127,7 +155,11 @@ export function TransactionHistoryModal({
   deletingTransactionId,
   isTransactionsLoading,
 }: TransactionHistoryModalProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateInputValue)
+  const [selectedDateFrom, setSelectedDateFrom] = useState<string>(
+    getTodayDateInputValue,
+  )
+  const [selectedDateTo, setSelectedDateTo] = useState<string>('')
+  const [isDatePeriodEnabled, setIsDatePeriodEnabled] = useState(false)
   const [amountSearch, setAmountSearch] = useState('')
   const [amountTolerance, setAmountTolerance] = useState('0')
 
@@ -144,7 +176,12 @@ export function TransactionHistoryModal({
 
   const filteredTransactions = sortedTransactions.filter(
     (transaction) =>
-      isSameSelectedDay(transaction.createdAt, selectedDate) &&
+      isWithinSelectedDateRange(
+        transaction.createdAt,
+        selectedDateFrom,
+        selectedDateTo,
+        isDatePeriodEnabled,
+      ) &&
       isAmountWithinTolerance(
         transaction.amountHkd,
         amountSearch,
@@ -170,13 +207,43 @@ export function TransactionHistoryModal({
         </header>
 
         <div className="history-filters" aria-label="Фильтры общей истории">
-          <label htmlFor="global-history-day">День</label>
+          <label htmlFor="global-history-date-from">День</label>
           <input
-            id="global-history-day"
+            id="global-history-date-from"
             type="date"
-            value={selectedDate}
-            onChange={(event) => setSelectedDate(event.target.value)}
+            value={selectedDateFrom}
+            onChange={(event) => setSelectedDateFrom(event.target.value)}
           />
+
+          <label className="history-period-toggle">
+            <input
+              type="checkbox"
+              checked={isDatePeriodEnabled}
+              onChange={(event) => {
+                const isEnabled = event.target.checked
+                setIsDatePeriodEnabled(isEnabled)
+
+                if (isEnabled) {
+                  setSelectedDateTo(selectedDateFrom)
+                } else {
+                  setSelectedDateTo('')
+                }
+              }}
+            />
+            Период
+          </label>
+
+          {isDatePeriodEnabled ? (
+            <>
+              <label htmlFor="global-history-date-to">Период: по</label>
+              <input
+                id="global-history-date-to"
+                type="date"
+                value={selectedDateTo}
+                onChange={(event) => setSelectedDateTo(event.target.value)}
+              />
+            </>
+          ) : null}
 
           <label htmlFor="global-history-amount">Сумма</label>
           <div className="history-amount-filter-row">
@@ -213,7 +280,7 @@ export function TransactionHistoryModal({
         ) : sortedTransactions.length === 0 ? (
           <p>Операций пока нет.</p>
         ) : filteredTransactions.length === 0 ? (
-          <p>По выбранному дню и сумме операций не найдено.</p>
+          <p>По выбранному периоду и сумме операций не найдено.</p>
         ) : (
           <ul className="history-list">
             {filteredTransactions.map((transaction) => {

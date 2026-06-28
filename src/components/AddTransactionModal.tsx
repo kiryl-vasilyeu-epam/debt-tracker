@@ -248,6 +248,11 @@ export function AddTransactionModal({
 
           <label htmlFor="transaction-who">Кто</label>
           <div className="person-select-row">
+            <span
+              className={`person-color-dot ${selectedWho ? '' : 'person-color-dot-placeholder'}`}
+              style={selectedWho ? { backgroundColor: selectedWho.color } : undefined}
+              aria-hidden="true"
+            />
             <select
               id="transaction-who"
               value={whoId}
@@ -260,17 +265,15 @@ export function AddTransactionModal({
                 </option>
               ))}
             </select>
-            {selectedWho ? (
-              <span
-                className="person-color-dot"
-                style={{ backgroundColor: selectedWho.color }}
-                aria-hidden="true"
-              />
-            ) : null}
           </div>
 
           <label htmlFor="transaction-to">{toWhomLabel}</label>
           <div className="person-select-row">
+            <span
+              className={`person-color-dot ${selectedTo ? '' : 'person-color-dot-placeholder'}`}
+              style={selectedTo ? { backgroundColor: selectedTo.color } : undefined}
+              aria-hidden="true"
+            />
             <select
               id="transaction-to"
               value={toWhomId}
@@ -286,19 +289,17 @@ export function AddTransactionModal({
                 </option>
               ))}
             </select>
-            {selectedTo ? (
-              <span
-                className="person-color-dot"
-                style={{ backgroundColor: selectedTo.color }}
-                aria-hidden="true"
-              />
-            ) : null}
           </div>
 
           {type === 'gave_for' ? (
             <>
               <label htmlFor="transaction-for">За кого</label>
               <div className="person-select-row">
+                <span
+                  className={`person-color-dot ${selectedFor ? '' : 'person-color-dot-placeholder'}`}
+                  style={selectedFor ? { backgroundColor: selectedFor.color } : undefined}
+                  aria-hidden="true"
+                />
                 <select
                   id="transaction-for"
                   value={forWhomId}
@@ -314,13 +315,6 @@ export function AddTransactionModal({
                     </option>
                   ))}
                 </select>
-                {selectedFor ? (
-                  <span
-                    className="person-color-dot"
-                    style={{ backgroundColor: selectedFor.color }}
-                    aria-hidden="true"
-                  />
-                ) : null}
               </div>
             </>
           ) : null}

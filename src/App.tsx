@@ -5,6 +5,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { StartScreen } from './components/StartScreen'
 import { TransactionHistoryModal } from './components/TransactionHistoryModal'
 import { useDebtTrackerData } from './hooks/useDebtTrackerData'
+import type { PersonScreenTab } from './types/ui'
 import './App.css'
 
 const THEME_STORAGE_KEY = 'debt-tracker-theme-v1'
@@ -27,6 +28,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false)
+  const [activePersonTab, setActivePersonTab] = useState<PersonScreenTab>('i_owe')
   const {
     people,
     activePersonId,
@@ -40,6 +42,7 @@ function App() {
     removingPersonId,
     isCreatingTransaction,
     deletingTransactionId,
+    isBackgroundRefreshing,
     requestError,
     closeRequestError,
     ensureTransactionsLoaded,
@@ -47,7 +50,10 @@ function App() {
     removePerson,
     createTransaction,
     deleteTransaction,
-  } = useDebtTrackerData()
+  } = useDebtTrackerData({
+    activePersonTab,
+    isHistoryOpen,
+  })
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -184,6 +190,8 @@ function App() {
         onRequestTransactions={ensureTransactionsLoaded}
         onDeleteTransaction={deleteTransaction}
         deletingTransactionId={deletingTransactionId}
+        isBackgroundRefreshing={isBackgroundRefreshing}
+        onActiveTabChange={setActivePersonTab}
       />
 
       {requestError ? (

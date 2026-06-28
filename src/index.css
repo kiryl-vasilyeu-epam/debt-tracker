@@ -28,6 +28,7 @@
   --note-text: #2f3f53;
   --missing-dot: #c8ced8;
   --missing-dot-border: rgba(63, 73, 86, 0.28);
+  --person-picker-empty-dot-border: #8fa3bf;
   --bg-gradient-top: #d8e7fa;
   --bg-gradient-bottom: #dcecf9;
 
@@ -72,6 +73,7 @@
   --note-text: #d3e0f2;
   --missing-dot: #51637d;
   --missing-dot-border: rgba(207, 223, 241, 0.24);
+  --person-picker-empty-dot-border: #ffffff;
   --bg-gradient-top: #1c2a3e;
   --bg-gradient-bottom: #1c2f45;
   color-scheme: dark;

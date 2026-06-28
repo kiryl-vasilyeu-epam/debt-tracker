@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DebtBalance } from '../types/balance'
 import type { Person } from '../types/person'
 import type { DebtTransaction, TransactionType } from '../types/transaction'
+import type { PersonScreenTab } from '../types/ui'
 
 type StartScreenProps = {
   activePerson: Person | null
@@ -13,6 +14,8 @@ type StartScreenProps = {
   onRequestTransactions: () => Promise<void>
   onDeleteTransaction: (transactionId: string) => Promise<void>
   deletingTransactionId: string | null
+  isBackgroundRefreshing: boolean
+  onActiveTabChange?: (tab: PersonScreenTab) => void
 }
 
 const transactionTypeLabels: Record<TransactionType, string> = {
@@ -41,13 +44,13 @@ const formatDate = (isoDate: string) => {
   })
 }
 
-type PersonScreenTab = 'i_owe' | 'owe_me' | 'transactions'
-
 const personScreenTabs: Record<PersonScreenTab, string> = {
   i_owe: 'Я должен',
   owe_me: 'Мне должны',
   transactions: 'Транзакции',
 }
+
+const formatAmount = (amount: number) => `HK$ ${amount.toFixed(2)}`
 
 const ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY =
   'debt-tracker-active-person-screen-tab-by-person-v1'
@@ -90,17 +93,45 @@ const toDateInputValue = (date: Date) => {
 
 const getTodayDateInputValue = () => toDateInputValue(new Date())
 
-const isSameSelectedDay = (isoDate: string, selectedDate: string) => {
-  if (!selectedDate) {
-    return true
-  }
-
+const isWithinSelectedDateRange = (
+  isoDate: string,
+  startDate: string,
+  endDate: string,
+  isPeriodEnabled: boolean,
+) => {
   const parsed = new Date(isoDate)
   if (Number.isNaN(parsed.getTime())) {
     return false
   }
 
-  return toDateInputValue(parsed) === selectedDate
+  const dateValue = toDateInputValue(parsed)
+
+  if (!isPeriodEnabled) {
+    if (!startDate) {
+      return true
+    }
+
+    return dateValue === startDate
+  }
+
+  if (!startDate && !endDate) {
+    return true
+  }
+
+  const normalizedStartDate =
+    startDate && endDate && startDate > endDate ? endDate : startDate
+  const normalizedEndDate =
+    startDate && endDate && startDate > endDate ? startDate : endDate
+
+  if (normalizedStartDate && dateValue < normalizedStartDate) {
+    return false
+  }
+
+  if (normalizedEndDate && dateValue > normalizedEndDate) {
+    return false
+  }
+
+  return true
 }
 
 const isAmountWithinTolerance = (
@@ -166,13 +197,18 @@ export function StartScreen({
   onRequestTransactions,
   onDeleteTransaction,
   deletingTransactionId,
+  isBackgroundRefreshing,
+  onActiveTabChange,
 }: StartScreenProps) {
   const [personTabs, setPersonTabs] = useState<Record<string, PersonScreenTab>>(
     getStoredPersonTabs,
   )
-  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>(
+  const [selectedHistoryDateFrom, setSelectedHistoryDateFrom] = useState<string>(
     getTodayDateInputValue,
   )
+  const [selectedHistoryDateTo, setSelectedHistoryDateTo] = useState<string>('')
+  const [isHistoryDatePeriodEnabled, setIsHistoryDatePeriodEnabled] =
+    useState(false)
   const [amountSearch, setAmountSearch] = useState('')
   const [amountTolerance, setAmountTolerance] = useState('0')
   const personTabsRef = useRef<HTMLDivElement | null>(null)
@@ -204,6 +240,10 @@ export function StartScreen({
 
     void onRequestTransactions()
   }, [activeTab, areTransactionsLoaded, onRequestTransactions])
+
+  useEffect(() => {
+    onActiveTabChange?.(activeTab)
+  }, [activeTab, onActiveTabChange])
 
   useEffect(() => {
     const tabsNode = personTabsRef.current
@@ -247,14 +287,26 @@ export function StartScreen({
     () =>
       activeTransactions.filter(
         (transaction) =>
-          isSameSelectedDay(transaction.createdAt, selectedHistoryDate) &&
+          isWithinSelectedDateRange(
+            transaction.createdAt,
+            selectedHistoryDateFrom,
+            selectedHistoryDateTo,
+            isHistoryDatePeriodEnabled,
+          ) &&
           isAmountWithinTolerance(
             transaction.amountHkd,
             amountSearch,
             amountTolerance,
           ),
       ),
-    [activeTransactions, amountSearch, amountTolerance, selectedHistoryDate],
+    [
+      activeTransactions,
+      amountSearch,
+      amountTolerance,
+      isHistoryDatePeriodEnabled,
+      selectedHistoryDateFrom,
+      selectedHistoryDateTo,
+    ],
   )
 
   const balancesForActivePerson = useMemo(() => {
@@ -289,6 +341,16 @@ export function StartScreen({
     }
   }, [activePerson, balances])
 
+  const iOweTotalAmount = useMemo(
+    () => balancesForActivePerson.iOwe.reduce((sum, entry) => sum + entry.amount, 0),
+    [balancesForActivePerson.iOwe],
+  )
+
+  const oweMeTotalAmount = useMemo(
+    () => balancesForActivePerson.oweMe.reduce((sum, entry) => sum + entry.amount, 0),
+    [balancesForActivePerson.oweMe],
+  )
+
   return (
     <section className="card start-screen">
       {!activePerson ? (
@@ -298,7 +360,16 @@ export function StartScreen({
         </>
       ) : (
         <>
-          <h2>{activePerson.name}</h2>
+          <div className="start-screen-title-row">
+            <h2>{activePerson.name}</h2>
+            {isBackgroundRefreshing ? (
+              <span
+                className="start-screen-sync-loader"
+                aria-label="Идет фоновая подзагрузка данных"
+                title="Идет фоновая подзагрузка данных"
+              />
+            ) : null}
+          </div>
 
           <div
             ref={personTabsRef}
@@ -321,6 +392,10 @@ export function StartScreen({
               </button>
             ))}
           </div>
+
+          {activeTab !== 'transactions' && (
+            <p>Итого: {formatAmount(activeTab === 'owe_me' ? oweMeTotalAmount : iOweTotalAmount)}</p>
+          )}
 
           {activeTab === 'i_owe' ? (
             balancesForActivePerson.iOwe.length === 0 ? (
@@ -376,13 +451,43 @@ export function StartScreen({
             ) : (
               <>
                 <div className="history-filters" aria-label="Фильтры истории">
-                  <label htmlFor="person-history-day">День</label>
+                  <label htmlFor="person-history-date-from">День</label>
                   <input
-                    id="person-history-day"
+                    id="person-history-date-from"
                     type="date"
-                    value={selectedHistoryDate}
-                    onChange={(event) => setSelectedHistoryDate(event.target.value)}
+                    value={selectedHistoryDateFrom}
+                    onChange={(event) => setSelectedHistoryDateFrom(event.target.value)}
                   />
+
+                  <label className="history-period-toggle">
+                    <input
+                      type="checkbox"
+                      checked={isHistoryDatePeriodEnabled}
+                      onChange={(event) => {
+                        const isEnabled = event.target.checked
+                        setIsHistoryDatePeriodEnabled(isEnabled)
+
+                        if (isEnabled) {
+                          setSelectedHistoryDateTo(selectedHistoryDateFrom)
+                        } else {
+                          setSelectedHistoryDateTo('')
+                        }
+                      }}
+                    />
+                    Период
+                  </label>
+
+                  {isHistoryDatePeriodEnabled ? (
+                    <>
+                      <label htmlFor="person-history-date-to">Период: по</label>
+                      <input
+                        id="person-history-date-to"
+                        type="date"
+                        value={selectedHistoryDateTo}
+                        onChange={(event) => setSelectedHistoryDateTo(event.target.value)}
+                      />
+                    </>
+                  ) : null}
 
                   <label htmlFor="person-history-amount">Сумма</label>
                   <div className="history-amount-filter-row">
@@ -412,7 +517,7 @@ export function StartScreen({
                 </div>
 
                 {filteredActiveTransactions.length === 0 ? (
-                  <p>По выбранному дню и сумме операций не найдено.</p>
+                  <p>По выбранному периоду и сумме операций не найдено.</p>
                 ) : (
                   <ul className="transactions-list">
                     {filteredActiveTransactions.map((transaction) => {

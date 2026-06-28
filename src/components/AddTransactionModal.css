@@ -85,6 +85,11 @@
     flex: 0 0 auto;
 }
 
+.person-select-row .person-color-dot.person-color-dot-placeholder {
+    background: transparent;
+    border-color: var(--person-picker-empty-dot-border);
+}
+
 .add-transaction-form select,
 .add-transaction-form input {
     border: 1px solid var(--line);

@@ -3,8 +3,10 @@ import {
   clearLegacyLocalData,
   deletePersonRemote,
   deleteTransactionRemote,
+  loadBalancesForPerson,
   loadInitialAppState,
   loadTransactions,
+  loadTransactionsForPerson,
   saveBalancesRemote,
   savePersonRemote,
   saveTransactionRemote,
@@ -14,13 +16,72 @@ import { generatePersonColor } from '../lib/peopleStorage'
 import type { DebtBalance } from '../types/balance'
 import type { Person } from '../types/person'
 import type { DebtTransaction, NewDebtTransaction } from '../types/transaction'
+import type { PersonScreenTab } from '../types/ui'
 
 const ACTIVE_PERSON_STORAGE_KEY = 'debt-tracker-active-person-id-v1'
+const DATA_POLL_INTERVAL_MS = 5000
 
 const getStoredActivePersonId = (): string | null =>
   window.localStorage.getItem(ACTIVE_PERSON_STORAGE_KEY)
 
-export const useDebtTrackerData = () => {
+const areBalancesEqual = (
+  left: DebtBalance[],
+  right: DebtBalance[],
+): boolean => {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((balance, index) => {
+    const candidate = right[index]
+
+    return (
+      balance.id === candidate.id &&
+      balance.debtorId === candidate.debtorId &&
+      balance.debtorName === candidate.debtorName &&
+      balance.creditorId === candidate.creditorId &&
+      balance.creditorName === candidate.creditorName &&
+      balance.amountHkd === candidate.amountHkd
+    )
+  })
+}
+
+const areTransactionsEqual = (
+  left: DebtTransaction[],
+  right: DebtTransaction[],
+): boolean => {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((transaction, index) => {
+    const candidate = right[index]
+
+    return (
+      transaction.id === candidate.id &&
+      transaction.type === candidate.type &&
+      transaction.fromPersonId === candidate.fromPersonId &&
+      transaction.fromPersonName === candidate.fromPersonName &&
+      transaction.toPersonId === candidate.toPersonId &&
+      transaction.toPersonName === candidate.toPersonName &&
+      transaction.forPersonId === candidate.forPersonId &&
+      transaction.forPersonName === candidate.forPersonName &&
+      transaction.amountHkd === candidate.amountHkd &&
+      transaction.note === candidate.note &&
+      transaction.createdAt === candidate.createdAt
+    )
+  })
+}
+
+type UseDebtTrackerDataOptions = {
+  activePersonTab: PersonScreenTab
+  isHistoryOpen: boolean
+}
+
+export const useDebtTrackerData = ({
+  activePersonTab,
+  isHistoryOpen,
+}: UseDebtTrackerDataOptions) => {
   const [people, setPeople] = useState<Person[]>([])
   const [activePersonId, setActivePersonId] = useState<string | null>(
     getStoredActivePersonId,
@@ -36,6 +97,7 @@ export const useDebtTrackerData = () => {
   const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(
     null,
   )
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
 
   const closeRequestError = useCallback(() => {
@@ -245,6 +307,88 @@ export const useDebtTrackerData = () => {
     [balances, transactions],
   )
 
+  useEffect(() => {
+    if (isInitialLoading || !activePersonId) {
+      return
+    }
+
+    let isDisposed = false
+    let isPolling = false
+
+    const syncVisibleData = async () => {
+      if (isDisposed || isPolling || document.hidden) {
+        return
+      }
+
+      isPolling = true
+      setIsBackgroundRefreshing(true)
+
+      try {
+        if (isHistoryOpen) {
+          const nextTransactions = await loadTransactions(people)
+
+          if (!isDisposed) {
+            setTransactions((previousTransactions) =>
+              areTransactionsEqual(previousTransactions, nextTransactions)
+                ? previousTransactions
+                : nextTransactions,
+            )
+            setAreTransactionsLoaded(true)
+          }
+
+          return
+        }
+
+        if (activePersonTab === 'transactions') {
+          const nextTransactions = await loadTransactionsForPerson(
+            activePersonId,
+            people,
+          )
+
+          if (!isDisposed) {
+            setTransactions((previousTransactions) =>
+              areTransactionsEqual(previousTransactions, nextTransactions)
+                ? previousTransactions
+                : nextTransactions,
+            )
+            setAreTransactionsLoaded(true)
+          }
+
+          return
+        }
+
+        const nextBalances = await loadBalancesForPerson(activePersonId, people)
+
+        if (!isDisposed) {
+          setBalances((previousBalances) =>
+            areBalancesEqual(previousBalances, nextBalances)
+              ? previousBalances
+              : nextBalances,
+          )
+        }
+      } catch {
+        // Keep polling silently; request errors are shown for explicit user actions.
+      } finally {
+        if (!isDisposed) {
+          setIsBackgroundRefreshing(false)
+        }
+        isPolling = false
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void syncVisibleData()
+    }, DATA_POLL_INTERVAL_MS)
+
+    void syncVisibleData()
+
+    return () => {
+      isDisposed = true
+      setIsBackgroundRefreshing(false)
+      window.clearInterval(intervalId)
+    }
+  }, [activePersonId, activePersonTab, isHistoryOpen, isInitialLoading, people])
+
   return {
     people,
     activePersonId,
@@ -258,6 +402,7 @@ export const useDebtTrackerData = () => {
     removingPersonId,
     isCreatingTransaction,
     deletingTransactionId,
+    isBackgroundRefreshing,
     requestError,
     closeRequestError,
     ensureTransactionsLoaded,

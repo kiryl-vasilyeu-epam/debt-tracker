@@ -163,6 +163,68 @@ export const loadTransactions = async (
   return transactionRowsSafe.map((row) => toTransaction(row, peopleMap))
 }
 
+export const loadTransactionsForPerson = async (
+  personId: string,
+  people: Person[],
+): Promise<DebtTransaction[]> => {
+  const db = assertSupabase()
+
+  const { data: transactionRows, error } = await db
+    .from('transactions')
+    .select(
+      [
+        'id',
+        'type',
+        'from_person_id',
+        'from_person_name',
+        'to_person_id',
+        'to_person_name',
+        'for_person_id',
+        'for_person_name',
+        'amount_hkd',
+        'note',
+        'created_at',
+      ].join(','),
+    )
+    .or(
+      `from_person_id.eq.${personId},to_person_id.eq.${personId},for_person_id.eq.${personId}`,
+    )
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error('Не удалось загрузить транзакции человека')
+  }
+
+  const transactionRowsSafe =
+    (transactionRows ?? []) as unknown as TransactionsRow[]
+  const peopleMap = new Map(people.map((person) => [person.id, person]))
+
+  return transactionRowsSafe.map((row) => toTransaction(row, peopleMap))
+}
+
+export const loadBalancesForPerson = async (
+  personId: string,
+  people: Person[],
+): Promise<DebtBalance[]> => {
+  const db = assertSupabase()
+
+  const { data: balanceRows, error } = await db
+    .from('balances')
+    .select('id,debtor_id,debtor_name,creditor_id,creditor_name,amount_hkd')
+    .or(`debtor_id.eq.${personId},creditor_id.eq.${personId}`)
+
+  if (error) {
+    throw new Error('Не удалось загрузить балансы человека')
+  }
+
+  const balanceRowsSafe = (balanceRows ?? []) as unknown as BalancesRow[]
+  const peopleMap = new Map(people.map((person) => [person.id, person]))
+
+  return balanceRowsSafe
+    .map((row) => toBalance(row, peopleMap))
+    .sort((a, b) => b.amountHkd - a.amountHkd)
+}
+
 export const savePersonRemote = async (person: Person) => {
   const db = assertSupabase()
 
