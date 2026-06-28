@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { PencilIcon, TrashIcon } from './ActionIcons'
 import { EditTransactionModal } from './EditTransactionModal'
+import { scrollHorizontallyIntoView } from '../lib/scrollHorizontallyIntoView'
 import type { DebtBalance } from '../types/balance'
 import type { Person } from '../types/person'
 import type {
@@ -363,11 +364,12 @@ export function StartScreen({
     const activeTabNode = tabsNode.querySelector<HTMLButtonElement>(
       '.person-screen-tab-active',
     )
-    activeTabNode?.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'center',
-      block: 'nearest',
-    })
+
+    if (!activeTabNode) {
+      return
+    }
+
+    scrollHorizontallyIntoView(tabsNode, activeTabNode)
   }, [activeTab])
 
   useEffect(() => {

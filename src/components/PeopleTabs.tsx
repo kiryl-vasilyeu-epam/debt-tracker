@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { scrollHorizontallyIntoView } from '../lib/scrollHorizontallyIntoView'
 import type { Person } from '../types/person'
 
 type PeopleTabsProps = {
@@ -26,11 +27,12 @@ export function PeopleTabs({
     const activeTabNode = tabsNode.querySelector<HTMLButtonElement>(
       '.person-tab-active',
     )
-    activeTabNode?.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'center',
-      block: 'nearest',
-    })
+
+    if (!activeTabNode) {
+      return
+    }
+
+    scrollHorizontallyIntoView(tabsNode, activeTabNode)
   }, [activePersonId])
 
   useEffect(() => {
