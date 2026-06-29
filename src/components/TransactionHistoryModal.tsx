@@ -30,12 +30,19 @@ const transactionTypeLabels: Record<TransactionType, string> = {
   took: 'Взял',
   gave: 'Отдал',
   gave_for: 'Отдал за',
+  transfer: 'Перенос',
 }
 
 const betweenPeopleLabel: Record<TransactionType, string> = {
   gave: '→',
   took: 'у',
   gave_for: '→',
+  transfer: '→',
+}
+
+const forPersonPrefixLabel: Partial<Record<TransactionType, string>> = {
+  gave_for: 'за',
+  transfer: 'долг',
 }
 
 const formatDate = (isoDate: string) => {
@@ -357,9 +364,11 @@ export function TransactionHistoryModal({
                       <PersonInline person={from} fallbackName={transaction.fromPersonName} />
                       <span className="history-arrow">{betweenPeopleLabel[transaction.type]}</span>
                       <PersonInline person={to} fallbackName={transaction.toPersonName} />
-                      {transaction.forPersonId ? (
+                      {transaction.forPersonId && forPersonPrefixLabel[transaction.type] ? (
                         <>
-                          <span className="history-for-text">за</span>
+                          <span className="history-for-text">
+                            {forPersonPrefixLabel[transaction.type]}
+                          </span>
                           <PersonInline
                             person={forPerson}
                             fallbackName={transaction.forPersonName ?? 'Удален'}

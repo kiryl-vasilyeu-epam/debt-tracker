@@ -90,6 +90,36 @@ const getSettlements = (transaction: DebtTransaction): Settlement[] => {
     ]
   }
 
+  if (transaction.type === 'transfer') {
+    if (!transaction.forPersonId || !transaction.forPersonName) {
+      return []
+    }
+
+    return [
+      {
+        debtorId: transaction.fromPersonId,
+        debtorName: transaction.fromPersonName,
+        creditorId: transaction.toPersonId,
+        creditorName: transaction.toPersonName,
+        amountHkd: transaction.amountHkd,
+      },
+      {
+        debtorId: transaction.forPersonId,
+        debtorName: transaction.forPersonName,
+        creditorId: transaction.fromPersonId,
+        creditorName: transaction.fromPersonName,
+        amountHkd: transaction.amountHkd,
+      },
+      {
+        debtorId: transaction.toPersonId,
+        debtorName: transaction.toPersonName,
+        creditorId: transaction.forPersonId,
+        creditorName: transaction.forPersonName,
+        amountHkd: transaction.amountHkd,
+      },
+    ]
+  }
+
   if (!transaction.forPersonId || !transaction.forPersonName) {
     return []
   }

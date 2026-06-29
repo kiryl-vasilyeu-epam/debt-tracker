@@ -46,6 +46,21 @@ const areBalancesEqual = (
   })
 }
 
+const mergeBalancesForPerson = (
+  allBalances: DebtBalance[],
+  personBalances: DebtBalance[],
+  personId: string,
+): DebtBalance[] => {
+  const balancesWithoutPerson = allBalances.filter(
+    (balance) =>
+      balance.debtorId !== personId && balance.creditorId !== personId,
+  )
+
+  return [...balancesWithoutPerson, ...personBalances].sort(
+    (left, right) => right.amountHkd - left.amountHkd,
+  )
+}
+
 const areTransactionsEqual = (
   left: DebtTransaction[],
   right: DebtTransaction[],
@@ -106,9 +121,14 @@ export const useDebtTrackerData = ({
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
   const lastTransactionsMutationAtRef = useRef(0)
+  const lastBalancesMutationAtRef = useRef(0)
 
   const markTransactionsMutation = useCallback(() => {
     lastTransactionsMutationAtRef.current = Date.now()
+  }, [])
+
+  const markBalancesMutation = useCallback(() => {
+    lastBalancesMutationAtRef.current = Date.now()
   }, [])
 
   const closeRequestError = useCallback(() => {
@@ -300,6 +320,7 @@ export const useDebtTrackerData = ({
       try {
         await saveTransactionRemote(nextTransaction)
         await saveBalancesRemote(nextBalances, balances)
+        markBalancesMutation()
 
         if (areTransactionsLoaded) {
           setTransactions((prevTransactions) => [nextTransaction, ...prevTransactions])
@@ -314,7 +335,12 @@ export const useDebtTrackerData = ({
         setIsCreatingTransaction(false)
       }
     },
-    [areTransactionsLoaded, balances, markTransactionsMutation],
+    [
+      areTransactionsLoaded,
+      balances,
+      markBalancesMutation,
+      markTransactionsMutation,
+    ],
   )
 
   const deleteTransaction = useCallback(
@@ -343,6 +369,7 @@ export const useDebtTrackerData = ({
       try {
         await deleteTransactionRemote(transactionId)
         await saveBalancesRemote(nextBalances, balances)
+        markBalancesMutation()
 
         setTransactions(nextTransactions)
         setBalances(nextBalances)
@@ -354,7 +381,7 @@ export const useDebtTrackerData = ({
         setDeletingTransactionId(null)
       }
     },
-    [balances, markTransactionsMutation, transactions],
+    [balances, markBalancesMutation, markTransactionsMutation, transactions],
   )
 
   const updateTransaction = useCallback(
@@ -396,6 +423,7 @@ export const useDebtTrackerData = ({
         isOriginalDeleted = true
         await saveTransactionRemote(nextTransaction)
         await saveBalancesRemote(nextBalances, balances)
+        markBalancesMutation()
 
         setTransactions((prevTransactions) =>
           prevTransactions.map((candidate) =>
@@ -421,7 +449,7 @@ export const useDebtTrackerData = ({
         setUpdatingTransactionId(null)
       }
     },
-    [balances, markTransactionsMutation, transactions],
+    [balances, markBalancesMutation, markTransactionsMutation, transactions],
   )
 
   useEffect(() => {
@@ -482,13 +510,22 @@ export const useDebtTrackerData = ({
         }
 
         const nextBalances = await loadBalancesForPerson(activePersonId, people)
+        if (startedAt < lastBalancesMutationAtRef.current) {
+          return
+        }
 
         if (!isDisposed) {
-          setBalances((previousBalances) =>
-            areBalancesEqual(previousBalances, nextBalances)
+          setBalances((previousBalances) => {
+            const nextMergedBalances = mergeBalancesForPerson(
+              previousBalances,
+              nextBalances,
+              activePersonId,
+            )
+
+            return areBalancesEqual(previousBalances, nextMergedBalances)
               ? previousBalances
-              : nextBalances,
-          )
+              : nextMergedBalances
+          })
         }
       } catch {
         // Keep polling silently; request errors are shown for explicit user actions.

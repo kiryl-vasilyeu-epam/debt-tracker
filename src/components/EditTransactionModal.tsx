@@ -25,14 +25,16 @@ const transactionTypeLabels: Record<TransactionType, string> = {
   took: 'Взял',
   gave: 'Отдал',
   gave_for: 'Отдал за',
+  transfer: 'Перенос',
 }
 
-const transactionTypeOrder: TransactionType[] = ['took', 'gave', 'gave_for']
+const transactionTypeOrder: TransactionType[] = ['took', 'gave', 'gave_for', 'transfer']
 
 const transactionTypeToneClass: Record<TransactionType, string> = {
   took: 'add-transaction-modal-tone-took',
   gave: 'add-transaction-modal-tone-gave',
   gave_for: 'add-transaction-modal-tone-gave-for',
+  transfer: 'add-transaction-modal-tone-transfer',
 }
 
 const formatPersonName = (personId: string, people: Person[]) => {
@@ -150,14 +152,20 @@ export function EditTransactionModal({
   )
 
   const availableForPeople = useMemo(
-    () => people.filter((person) => person.id !== whoId),
-    [people, whoId],
+    () =>
+      people.filter(
+        (person) => person.id !== whoId && (type !== 'transfer' || person.id !== toWhomId),
+      ),
+    [people, toWhomId, type, whoId],
   )
 
   const selectedWho = getPersonById(whoId, people)
   const selectedTo = getPersonById(toWhomId, people)
   const selectedFor = getPersonById(forWhomId, people)
-  const toWhomLabel = type === 'took' ? 'У кого' : 'Кому'
+  const isForWhomVisible = type === 'gave_for' || type === 'transfer'
+  const whoLabel = type === 'transfer' ? 'С кого' : 'Кто'
+  const toWhomLabel = type === 'took' ? 'У кого' : type === 'transfer' ? 'На кого' : 'Кому'
+  const forWhomLabel = type === 'transfer' ? 'Долг кому' : 'За кого'
   const isUpdatingCurrentTransaction =
     transaction ? updatingTransactionId === transaction.id : false
 
@@ -195,13 +203,27 @@ export function EditTransactionModal({
       return
     }
 
-    if (type === 'gave_for' && !forWhomId) {
-      setError('Для операции Отдал за нужно указать За кого.')
+    if ((type === 'gave_for' || type === 'transfer') && !forWhomId) {
+      setError(
+        type === 'transfer'
+          ? 'Для операции Перенос нужно указать поле Долг кому.'
+          : 'Для операции Отдал за нужно указать За кого.',
+      )
       return
     }
 
     if (type === 'gave_for' && forWhomId === whoId) {
       setError('Поле За кого не может совпадать с полем Кто.')
+      return
+    }
+
+    if (type === 'transfer' && forWhomId === whoId) {
+      setError('Поле Долг кому не может совпадать с полем С кого.')
+      return
+    }
+
+    if (type === 'transfer' && forWhomId === toWhomId) {
+      setError('Поле Долг кому не может совпадать с полем На кого.')
       return
     }
 
@@ -214,7 +236,9 @@ export function EditTransactionModal({
     const whoName = formatPersonName(whoId, people)
     const toName = formatPersonName(toWhomId, people)
     const resolvedForName =
-      type === 'gave_for' ? formatPersonName(forWhomId, people) : null
+      type === 'gave_for' || type === 'transfer'
+        ? formatPersonName(forWhomId, people)
+        : null
 
     if (!transaction) {
       return
@@ -226,8 +250,11 @@ export function EditTransactionModal({
       fromPersonName: whoName || 'Удален',
       toPersonId: toWhomId,
       toPersonName: toName || 'Удален',
-      forPersonId: type === 'gave_for' ? forWhomId : null,
-      forPersonName: type === 'gave_for' ? resolvedForName || 'Удален' : null,
+      forPersonId: type === 'gave_for' || type === 'transfer' ? forWhomId : null,
+      forPersonName:
+        type === 'gave_for' || type === 'transfer'
+          ? resolvedForName || 'Удален'
+          : null,
       amountHkd: numericAmount,
       note: note.trim() ? note.trim().slice(0, 280) : null,
     })
@@ -294,7 +321,7 @@ export function EditTransactionModal({
             ))}
           </div>
 
-          <label htmlFor="edit-transaction-who">Кто</label>
+          <label htmlFor="edit-transaction-who">{whoLabel}</label>
           <div className="person-select-row">
             <span
               className={`person-color-dot ${selectedWho ? '' : 'person-color-dot-placeholder'}`}
@@ -342,9 +369,12 @@ export function EditTransactionModal({
             </select>
           </div>
 
-          {type === 'gave_for' ? (
+          <div
+            className={`optional-person-field ${isForWhomVisible ? 'optional-person-field-visible' : ''}`}
+            aria-hidden={!isForWhomVisible}
+          >
             <>
-              <label htmlFor="edit-transaction-for">За кого</label>
+              <label htmlFor="edit-transaction-for">{forWhomLabel}</label>
               <div className="person-select-row">
                 <span
                   className={`person-color-dot ${selectedFor ? '' : 'person-color-dot-placeholder'}`}
@@ -355,7 +385,7 @@ export function EditTransactionModal({
                   id="edit-transaction-for"
                   value={forWhomId}
                   onChange={(event) => setForWhomId(event.target.value)}
-                  disabled={isUpdatingCurrentTransaction}
+                  disabled={isUpdatingCurrentTransaction || !isForWhomVisible}
                 >
                   <option value="" disabled hidden>
                     Выберите человека
@@ -368,7 +398,7 @@ export function EditTransactionModal({
                 </select>
               </div>
             </>
-          ) : null}
+          </div>
 
           <label htmlFor="edit-transaction-amount">Сумма (HKD)</label>
           <div className="amount-input-wrap">

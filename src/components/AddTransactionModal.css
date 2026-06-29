@@ -23,6 +23,11 @@
     box-shadow: 0 18px 36px rgba(21, 128, 74, 0.28), 0 0 0 1px rgba(21, 128, 74, 0.14);
 }
 
+.modal.add-transaction-modal.add-transaction-modal-tone-transfer {
+    --transaction-tone-bg: rgba(103, 76, 180, 0.17);
+    box-shadow: 0 18px 36px rgba(103, 76, 180, 0.27), 0 0 0 1px rgba(103, 76, 180, 0.14);
+}
+
 .add-transaction-form {
     display: grid;
     gap: 0.52rem;
@@ -48,7 +53,7 @@
 
 .transaction-type-group {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.45rem;
     align-items: stretch;
     min-height: 40px;
@@ -113,6 +118,28 @@
 
 .person-select-row select {
     flex: 1;
+}
+
+.optional-person-field {
+    display: grid;
+    gap: 0.52rem;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition:
+        max-height 220ms ease,
+        opacity 160ms ease,
+        transform 220ms ease;
+}
+
+.optional-person-field-visible {
+    max-height: 260px;
+    opacity: 1;
+    transform: translateY(0);
+    overflow: visible;
+    pointer-events: auto;
 }
 
 .add-transaction-form select:focus-visible,

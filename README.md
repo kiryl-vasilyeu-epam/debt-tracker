@@ -38,7 +38,7 @@ create table if not exists public.people (
 
 create table if not exists public.transactions (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('gave', 'took', 'gave_for')),
+  type text not null check (type in ('gave', 'took', 'gave_for', 'transfer')),
   from_person_id uuid not null,
   from_person_name text,
   to_person_id uuid not null,
@@ -177,4 +177,17 @@ drop constraint if exists transactions_note_length_check;
 alter table public.transactions
 add constraint transactions_note_length_check
 check (note is null or char_length(note) <= 280);
+```
+
+## SQL migration for transfer transaction type
+
+If the `transactions` table already exists with old type check, update it:
+
+```sql
+alter table public.transactions
+drop constraint if exists transactions_type_check;
+
+alter table public.transactions
+add constraint transactions_type_check
+check (type in ('gave', 'took', 'gave_for', 'transfer'));
 ```

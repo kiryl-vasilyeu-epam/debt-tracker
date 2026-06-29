@@ -35,12 +35,19 @@ const transactionTypeLabels: Record<TransactionType, string> = {
   took: 'Взял',
   gave: 'Отдал',
   gave_for: 'Отдал за',
+  transfer: 'Перенос',
 }
 
 const betweenPeopleLabel: Record<TransactionType, string> = {
   gave: '→',
   took: 'у',
   gave_for: '→',
+  transfer: '→',
+}
+
+const forPersonPrefixLabel: Partial<Record<TransactionType, string>> = {
+  gave_for: 'за',
+  transfer: 'долг',
 }
 
 const formatDate = (isoDate: string) => {
@@ -71,26 +78,38 @@ const ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY =
 const isPersonScreenTab = (value: string | null): value is PersonScreenTab =>
   value === 'i_owe' || value === 'owe_me' || value === 'transactions'
 
-const getStoredPersonTabs = (): Record<string, PersonScreenTab> => {
+type LastSelectedPersonTab = {
+  personId: string
+  tab: PersonScreenTab
+}
+
+const getStoredLastSelectedPersonTab = (): LastSelectedPersonTab | null => {
   const rawValue = window.localStorage.getItem(ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY)
   if (!rawValue) {
-    return {}
+    return null
   }
 
   try {
-    const parsed = JSON.parse(rawValue) as Record<string, string>
-    const next: Record<string, PersonScreenTab> = {}
+    const parsed = JSON.parse(rawValue) as {
+      personId?: unknown
+      tab?: unknown
+    }
+    const tabCandidate = typeof parsed.tab === 'string' ? parsed.tab : null
 
-    for (const [personId, tab] of Object.entries(parsed)) {
-      if (isPersonScreenTab(tab)) {
-        next[personId] = tab
-      }
+    if (
+      typeof parsed.personId !== 'string' ||
+      !isPersonScreenTab(tabCandidate)
+    ) {
+      return null
     }
 
-    return next
+    return {
+      personId: parsed.personId,
+      tab: tabCandidate,
+    }
   } catch {
     window.localStorage.removeItem(ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY)
-    return {}
+    return null
   }
 }
 
@@ -304,9 +323,10 @@ export function StartScreen({
   isBackgroundRefreshing,
   onActiveTabChange,
 }: StartScreenProps) {
-  const [personTabs, setPersonTabs] = useState<Record<string, PersonScreenTab>>(
-    getStoredPersonTabs,
+  const [lastSelectedPersonTab] = useState<LastSelectedPersonTab | null>(
+    getStoredLastSelectedPersonTab,
   )
+  const [activeTab, setActiveTab] = useState<PersonScreenTab>('i_owe')
   const [selectedHistoryDateFrom, setSelectedHistoryDateFrom] = useState<string>(
     getTodayDateInputValue,
   )
@@ -321,26 +341,59 @@ export function StartScreen({
   const startScreenRef = useRef<HTMLElement | null>(null)
   const personTabsRef = useRef<HTMLDivElement | null>(null)
   const previousActiveBalanceAmountsRef = useRef<Map<string, number> | null>(null)
+  const previousBalancePersonIdRef = useRef<string | null>(null)
   const clearBalanceHighlightTimeoutsRef = useRef<number[]>([])
-
-  const activeTab = activePerson ? (personTabs[activePerson.id] ?? 'i_owe') : 'i_owe'
+  const previousActivePersonIdRef = useRef<string | null>(null)
+  const activePersonId = activePerson?.id ?? null
 
   useEffect(() => {
-    window.localStorage.setItem(
-      ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY,
-      JSON.stringify(personTabs),
-    )
-  }, [personTabs])
+    const syncTimeoutId = window.setTimeout(() => {
+      if (!activePersonId) {
+        previousActivePersonIdRef.current = null
+        setActiveTab('i_owe')
+        return
+      }
 
-  const handleTabSelect = (nextTab: PersonScreenTab) => {
-    if (!activePerson) {
+      if (previousActivePersonIdRef.current === null) {
+        previousActivePersonIdRef.current = activePersonId
+
+        if (lastSelectedPersonTab?.personId === activePersonId) {
+          setActiveTab(lastSelectedPersonTab.tab)
+          return
+        }
+
+        setActiveTab('i_owe')
+        return
+      }
+
+      if (previousActivePersonIdRef.current !== activePersonId) {
+        previousActivePersonIdRef.current = activePersonId
+        setActiveTab('i_owe')
+      }
+    }, 0)
+
+    return () => {
+      window.clearTimeout(syncTimeoutId)
+    }
+  }, [activePersonId, lastSelectedPersonTab])
+
+  useEffect(() => {
+    if (!activePersonId) {
+      window.localStorage.removeItem(ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY)
       return
     }
 
-    setPersonTabs((prevTabs) => ({
-      ...prevTabs,
-      [activePerson.id]: nextTab,
-    }))
+    window.localStorage.setItem(
+      ACTIVE_PERSON_SCREEN_TAB_STORAGE_KEY,
+      JSON.stringify({
+        personId: activePersonId,
+        tab: activeTab,
+      }),
+    )
+  }, [activePersonId, activeTab])
+
+  const handleTabSelect = (nextTab: PersonScreenTab) => {
+    setActiveTab(nextTab)
   }
 
   useEffect(() => {
@@ -479,6 +532,7 @@ export function StartScreen({
   useEffect(() => {
     if (!activePerson) {
       previousActiveBalanceAmountsRef.current = null
+      previousBalancePersonIdRef.current = null
       return
     }
 
@@ -491,6 +545,16 @@ export function StartScreen({
     balancesForActivePerson.oweMe.forEach((entry) => {
       nextAmounts.set(`owe_me:${entry.personId}`, entry.amount)
     })
+
+    if (previousBalancePersonIdRef.current !== activePerson.id) {
+      clearBalanceHighlightTimeoutsRef.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
+      clearBalanceHighlightTimeoutsRef.current = []
+      previousBalancePersonIdRef.current = activePerson.id
+      previousActiveBalanceAmountsRef.current = nextAmounts
+      return
+    }
 
     const previousAmounts = previousActiveBalanceAmountsRef.current
     if (!previousAmounts) {
@@ -527,7 +591,7 @@ export function StartScreen({
 
         const timeoutId = window.setTimeout(() => {
           balanceItem.classList.remove('balance-item-updated')
-        }, 1000)
+        }, 820)
 
         clearBalanceHighlightTimeoutsRef.current.push(timeoutId)
       })
@@ -760,9 +824,11 @@ export function StartScreen({
                                 person={toPerson}
                                 fallbackName={transaction.toPersonName}
                               />
-                              {transaction.forPersonId ? (
+                              {transaction.forPersonId && forPersonPrefixLabel[transaction.type] ? (
                                 <>
-                                  <span className="history-for-text">за</span>
+                                  <span className="history-for-text">
+                                    {forPersonPrefixLabel[transaction.type]}
+                                  </span>
                                   <PersonInline
                                     person={forPerson}
                                     fallbackName={transaction.forPersonName ?? 'Удален'}

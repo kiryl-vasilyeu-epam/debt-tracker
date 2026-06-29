@@ -1,4 +1,4 @@
-export type TransactionType = 'gave' | 'took' | 'gave_for'
+export type TransactionType = 'gave' | 'took' | 'gave_for' | 'transfer'
 
 export type DebtTransaction = {
   id: string
